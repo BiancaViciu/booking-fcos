@@ -10,13 +10,27 @@ const submitButton = document.querySelector("#submitButton");
 const bookingPanel = document.querySelector(".booking-panel");
 const receiptTemplate = document.querySelector("#bookingTemplate");
 
-const availableTimes = ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"];
+const defaultAvailability = {
+  online: {
+    weekdays: [1, 2, 3, 4, 5],
+    times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
+  },
+  inPerson: {
+    weekdays: [2, 3, 4],
+    times: ["10:00", "11:00", "14:00", "15:00"],
+  },
+};
+const durationLabels = {
+  15: "15 minutes - £140 + VAT",
+  30: "30 minutes - £280 + VAT",
+};
 const today = startOfDay(new Date());
 
 let currentMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 let selectedDate = null;
 let selectedTime = "";
 let bookedSlots = [];
+let availability = defaultAvailability;
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -39,12 +53,20 @@ function formatDate(date) {
 }
 
 function isBooked(dateKey, time) {
-  return bookedSlots.some((booking) => booking.date === dateKey && booking.time === time);
+  const mode = getSelectedMode();
+  const consultant = getSelectedConsultant();
+
+  return bookedSlots.some(
+    (booking) =>
+      booking.date === dateKey &&
+      booking.time === time &&
+      booking.appointmentMode === mode &&
+      booking.consultant === consultant,
+  );
 }
 
 function isUnavailableDate(date) {
-  const day = date.getDay();
-  return date < today || day === 0 || day === 6;
+  return date < today || !getModeWeekdays().includes(date.getDay());
 }
 
 function renderCalendar() {
@@ -105,6 +127,7 @@ function renderCalendar() {
 
 function renderSlots() {
   timeSlots.innerHTML = "";
+  const availableTimes = getModeTimes();
 
   if (!selectedDate) {
     availableTimes.forEach((time) => {
@@ -145,14 +168,16 @@ function createSlotButton(time) {
 }
 
 function updateSummary() {
+  const duration = getSelectedDuration();
+
   if (!selectedDate) {
-    appointmentSummary.textContent = "Choose a weekday from the calendar.";
+    appointmentSummary.textContent = `Choose a weekday for a ${durationLabels[duration]} consultation.`;
     return;
   }
 
   appointmentSummary.textContent = selectedTime
-    ? `${formatDate(selectedDate)} at ${selectedTime}`
-    : `${formatDate(selectedDate)} - choose a time`;
+    ? `${formatDate(selectedDate)} at ${selectedTime} · ${durationLabels[duration]} · ${getModeLabel()}`
+    : `${formatDate(selectedDate)} · ${durationLabels[duration]} · choose a time`;
 }
 
 function changeMonth(direction) {
@@ -181,6 +206,107 @@ async function loadBookedSlots() {
   }
 }
 
+async function handlePaymentReturn() {
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get("canceled") === "1") {
+    formStatus.textContent = "Payment was canceled. Your appointment has not been confirmed.";
+    return;
+  }
+
+  if (params.get("paid") !== "1") {
+    return;
+  }
+
+  const sessionId = params.get("session_id");
+
+  if (!sessionId) {
+    formStatus.textContent = "Payment completed, but the booking confirmation could not be loaded.";
+    return;
+  }
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      const response = await fetch(`/api/booking-status?session_id=${encodeURIComponent(sessionId)}`);
+      const booking = await response.json();
+
+      if (response.ok && booking.status === "confirmed") {
+        showReceipt(booking);
+        return;
+      }
+    } catch {
+      // Stripe webhooks can arrive a moment after the customer returns from Checkout.
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+  }
+
+  formStatus.textContent =
+    "Payment was received. Your confirmation email will arrive as soon as Stripe finishes processing.";
+}
+
+async function loadAvailability() {
+  try {
+    const response = await fetch("/api/availability");
+
+    if (!response.ok) {
+      return;
+    }
+
+    availability = await response.json();
+    renderSlots();
+    updateSummary();
+  } catch {
+    availability = defaultAvailability;
+  }
+}
+
+function getSelectedMode() {
+  return new FormData(bookingForm).get("appointmentMode") || "online";
+}
+
+function getModeLabel() {
+  return getSelectedMode() === "inPerson" ? "In person" : "Online";
+}
+
+function getSelectedDuration() {
+  return new FormData(bookingForm).get("duration") || "15";
+}
+
+function getSelectedConsultant() {
+  return new FormData(bookingForm).get("consultant") || "First available solicitor";
+}
+
+function getModeAvailability() {
+  const modeAvailability = availability[getSelectedMode()];
+
+  if (Array.isArray(modeAvailability)) {
+    return {
+      weekdays: [1, 2, 3, 4, 5],
+      times: modeAvailability,
+    };
+  }
+
+  return modeAvailability || defaultAvailability[getSelectedMode()];
+}
+
+function getModeTimes() {
+  return getModeAvailability().times || [];
+}
+
+function getModeWeekdays() {
+  return getModeAvailability().weekdays || [1, 2, 3, 4, 5];
+}
+
+bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], select[name="consultant"]').forEach((control) => {
+  control.addEventListener("change", () => {
+    selectedTime = "";
+    formStatus.textContent = "";
+    renderSlots();
+    updateSummary();
+  });
+});
+
 bookingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   formStatus.textContent = "";
@@ -208,11 +334,14 @@ bookingForm.addEventListener("submit", async (event) => {
     email: formData.get("email"),
     phone: formData.get("phone"),
     caseType: formData.get("caseType"),
+    appointmentMode: formData.get("appointmentMode"),
+    duration: formData.get("duration"),
+    consultant: formData.get("consultant"),
     message: formData.get("message"),
   };
 
   submitButton.disabled = true;
-  submitButton.textContent = "Sending request...";
+  submitButton.textContent = "Opening Stripe...";
 
   try {
     const response = await fetch("/api/bookings", {
@@ -229,12 +358,23 @@ bookingForm.addEventListener("submit", async (event) => {
       throw new Error(payload.error || "Could not send booking request.");
     }
 
-    bookedSlots.push({ date: booking.date, time: booking.time });
+    bookedSlots.push({
+      date: booking.date,
+      time: booking.time,
+      appointmentMode: booking.appointmentMode,
+      consultant: booking.consultant,
+    });
+
+    if (payload.paymentUrl) {
+      window.location.assign(payload.paymentUrl);
+      return;
+    }
+
     showReceipt(payload.booking);
   } catch (error) {
     formStatus.textContent = error.message;
     submitButton.disabled = false;
-    submitButton.textContent = "Send booking request";
+    submitButton.textContent = "Continue to payment";
   }
 });
 
@@ -259,3 +399,5 @@ renderCalendar();
 renderSlots();
 updateSummary();
 loadBookedSlots();
+loadAvailability();
+handlePaymentReturn();

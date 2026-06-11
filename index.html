@@ -78,9 +78,52 @@
             <p class="section-label">Selected appointment</p>
             <div class="summary" id="appointmentSummary">Choose a weekday from the calendar.</div>
             <p class="info-note" id="emailNote">
-              After you send the request, the client receives a confirmation email and the firm receives the booking details.
+              Choose your consultation type, then complete payment securely through Stripe.
             </p>
           </div>
+
+          <div class="booking-options">
+            <fieldset>
+              <legend>Appointment type</legend>
+              <div class="choice-grid two">
+                <label class="choice-card">
+                  <input name="appointmentMode" type="radio" value="online" checked />
+                  <span>Online</span>
+                </label>
+                <label class="choice-card">
+                  <input name="appointmentMode" type="radio" value="inPerson" />
+                  <span>In person</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Consultation length</legend>
+              <div class="choice-grid two">
+                <label class="choice-card">
+                  <input name="duration" type="radio" value="15" checked />
+                  <span>15 min</span>
+                  <small>£140 + VAT</small>
+                </label>
+                <label class="choice-card">
+                  <input name="duration" type="radio" value="30" />
+                  <span>30 min</span>
+                  <small>£280 + VAT</small>
+                </label>
+              </div>
+            </fieldset>
+          </div>
+
+          <label>
+            Consultant
+            <select name="consultant" required>
+              <option value="">Select one</option>
+              <option>First available solicitor</option>
+              <option>Mihaela Pădure</option>
+              <option>Sandra Zăuleț</option>
+              <option>Eleonora Sorodoc</option>
+            </select>
+          </label>
 
           <fieldset>
             <legend>Available times</legend>
@@ -131,7 +174,7 @@
           </label>
 
           <button class="submit-button" id="submitButton" type="submit">
-            Send booking request
+            Continue to payment
           </button>
           <p class="status" id="formStatus" role="status" aria-live="polite"></p>
         </form>
