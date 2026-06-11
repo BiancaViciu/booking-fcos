@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Law Firm Booking System</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="booking-app">
+      <section class="intro" aria-label="Law firm appointment booking">
+        <div class="intro__content">
+          <p class="eyebrow">Client appointments</p>
+          <h1>Book a legal consultation</h1>
+          <p>
+            Choose a date and time, share your contact details, and send the
+            request to the firm for review.
+          </p>
+        </div>
+      </section>
+
+      <section class="booking-panel" aria-label="Booking form">
+        <div class="calendar-card">
+          <div class="calendar-head">
+            <button class="icon-button" id="prevMonth" type="button" aria-label="Previous month">
+              <span aria-hidden="true">&lt;</span>
+            </button>
+            <h2 id="monthLabel">Month</h2>
+            <button class="icon-button" id="nextMonth" type="button" aria-label="Next month">
+              <span aria-hidden="true">&gt;</span>
+            </button>
+          </div>
+
+          <div class="weekday-row" aria-hidden="true">
+            <span>Sun</span>
+            <span>Mon</span>
+            <span>Tue</span>
+            <span>Wed</span>
+            <span>Thu</span>
+            <span>Fri</span>
+            <span>Sat</span>
+          </div>
+
+          <div class="calendar-grid" id="calendarGrid" aria-label="Calendar dates"></div>
+        </div>
+
+        <form class="form-card" id="bookingForm">
+          <div>
+            <p class="section-label">Selected appointment</p>
+            <div class="summary" id="appointmentSummary">Choose a weekday from the calendar.</div>
+            <p class="info-note" id="emailNote">
+              After you send the request, the client receives a confirmation email and the firm receives the booking details.
+            </p>
+          </div>
+
+          <fieldset>
+            <legend>Available times</legend>
+            <div class="slots" id="timeSlots" aria-label="Available appointment times"></div>
+          </fieldset>
+
+          <div class="form-grid">
+            <label>
+              Full name
+              <input name="fullName" autocomplete="name" required />
+            </label>
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Phone number
+              <input name="phone" type="tel" autocomplete="tel" required />
+            </label>
+            <label>
+              Case type
+              <select name="caseType" required>
+                <option value="">Select one</option>
+                <option>Family law</option>
+                <option>Business law</option>
+                <option>Real estate</option>
+                <option>Employment law</option>
+                <option>Immigration</option>
+                <option>Criminal defense</option>
+                <option>Other</option>
+              </select>
+            </label>
+          </div>
+
+          <label>
+            Brief description
+            <textarea
+              name="message"
+              rows="4"
+              placeholder="Share a short summary of the matter."
+              required
+            ></textarea>
+          </label>
+
+          <label class="consent">
+            <input name="consent" type="checkbox" required />
+            <span>I agree to be contacted about this appointment request.</span>
+          </label>
+
+          <button class="submit-button" id="submitButton" type="submit">
+            Send booking request
+          </button>
+          <p class="status" id="formStatus" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+    </main>
+
+    <template id="bookingTemplate">
+      <article class="booking-receipt">
+        <h2>Booking request sent</h2>
+        <p id="receiptText"></p>
+        <button class="submit-button" id="newBooking" type="button">Book another appointment</button>
+      </article>
+    </template>
+
+    <script src="script.js"></script>
+  </body>
+</html>
