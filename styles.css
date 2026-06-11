@@ -65,7 +65,7 @@ a {
   z-index: 5;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 24px;
   min-height: 74px;
   padding: 12px clamp(24px, 3.5vw, 54px);
@@ -80,29 +80,8 @@ a {
 
 .brand img {
   display: block;
-  width: clamp(150px, 15vw, 212px);
+  width: clamp(116px, 10vw, 152px);
   height: auto;
-}
-
-.header-links {
-  display: flex;
-  align-items: center;
-  gap: clamp(22px, 3vw, 54px);
-  color: var(--navy);
-  font-size: 0.82rem;
-  font-weight: 950;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.header-links a {
-  padding: 10px 0;
-  border-bottom: 2px solid transparent;
-}
-
-.header-links a:hover {
-  border-color: var(--magenta);
-  color: var(--magenta);
 }
 
 .booking-app {
@@ -588,13 +567,7 @@ textarea:focus {
   }
 
   .brand img {
-    width: 168px;
-  }
-
-  .header-links {
-    width: 100%;
-    justify-content: space-between;
-    gap: 18px;
+    width: 124px;
   }
 
   .booking-app {
