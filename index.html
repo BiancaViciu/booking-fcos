@@ -7,20 +7,52 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <header class="site-header">
+      <a class="brand" href="https://fcos.co.uk" aria-label="Forest & Co home">
+        <img src="assets/fcos-logo.png" alt="Forest & Co Legal Experts" />
+      </a>
+      <nav class="header-links" aria-label="Forest & Co links">
+        <a href="https://fcos.co.uk/practice-areas/">Practice areas</a>
+        <a href="https://fcos.co.uk/contact/">Contact</a>
+      </nav>
+    </header>
+
     <main class="booking-app">
       <section class="intro" aria-label="Law firm appointment booking">
         <div class="intro__content">
-          <p class="eyebrow">Client appointments</p>
-          <h1>Book a legal consultation</h1>
+          <p class="eyebrow">Legal direction</p>
+          <h1>Book a consultation with Forest & Co</h1>
+          <span class="title-rule" aria-hidden="true"></span>
           <p>
-            Choose a date and time, share your contact details, and send the
-            request to the firm for review.
+            Choose a suitable time and share a short outline of your matter.
+            Our team will review your request with discretion, structure and care.
           </p>
+          <div class="intro-actions" aria-label="Consultation details">
+            <span><strong>London law firm</strong>International expertise</span>
+            <span><strong>Individuals & businesses</strong>Tailored legal solutions</span>
+            <span><strong>SRA regulated</strong>Your matter is protected</span>
+          </div>
+        </div>
+
+        <div class="guidance-panel" aria-label="Forest & Co approach">
+          <div>
+            <p>We guide.</p>
+            <p>We clarify.</p>
+            <p>We protect.</p>
+          </div>
+          <div>
+            <p>
+              From complex legal matters to everyday decisions, we provide clear
+              advice and strategic support you can rely on.
+            </p>
+            <a href="https://fcos.co.uk/the-firm/">Learn more about us <span aria-hidden="true">→</span></a>
+          </div>
         </div>
       </section>
 
       <section class="booking-panel" aria-label="Booking form">
         <div class="calendar-card">
+          <div class="panel-kicker">Step 1</div>
           <div class="calendar-head">
             <button class="icon-button" id="prevMonth" type="button" aria-label="Previous month">
               <span aria-hidden="true">&lt;</span>
@@ -46,6 +78,7 @@
 
         <form class="form-card" id="bookingForm">
           <div>
+            <div class="panel-kicker">Step 2</div>
             <p class="section-label">Selected appointment</p>
             <div class="summary" id="appointmentSummary">Choose a weekday from the calendar.</div>
             <p class="info-note" id="emailNote">
@@ -108,6 +141,12 @@
         </form>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <span>Forest & Co Solicitors</span>
+      <span>16 Berkeley Street, London, W1J 8DZ</span>
+      <span>enquiries@fcos.co.uk</span>
+    </footer>
 
     <template id="bookingTemplate">
       <article class="booking-receipt">
