@@ -628,6 +628,11 @@ async function confirmPaidBooking(session) {
 }
 
 async function sendBookingEmails(booking) {
+  if (process.env.RESEND_API_KEY) {
+    await sendBookingEmailsWithResend(booking);
+    return;
+  }
+
   if (!firmEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     console.warn("Email is not configured. Booking saved, but emails were not sent.");
     return;
@@ -689,6 +694,21 @@ async function sendBookingEmails(booking) {
 }
 
 async function sendTestEmail() {
+  if (process.env.RESEND_API_KEY) {
+    await sendResendEmail({
+      to: firmEmail,
+      subject: "Forest & Co booking email test",
+      text: [
+        "This is a test email from the Forest & Co booking website.",
+        "",
+        "Email provider: Resend",
+        `Sent at: ${new Date().toISOString()}`,
+      ].join("\n"),
+    });
+    console.log(`Admin Resend test email sent to ${firmEmail}`);
+    return;
+  }
+
   if (!firmEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
     throw new Error("Email is not configured in Render.");
   }
@@ -707,6 +727,94 @@ async function sendTestEmail() {
   });
 
   console.log(`Admin test email sent to ${firmEmail}`);
+}
+
+async function sendBookingEmailsWithResend(booking) {
+  if (!firmEmail) {
+    throw new Error("FIRM_EMAIL is not configured in Render.");
+  }
+
+  const appointmentLine = `${booking.date} at ${booking.time}`;
+  const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
+  const durationLine = `${booking.duration} minutes`;
+
+  await sendResendEmail({
+    to: booking.email,
+    subject: "Your legal consultation request is confirmed",
+    text: [
+      `Hello ${booking.fullName},`,
+      "",
+      `Your consultation request is confirmed for ${appointmentLine}.`,
+      `Appointment type: ${appointmentType}`,
+      `Consultation length: ${durationLine}`,
+      `Consultant: ${booking.consultant}`,
+      `Case type: ${booking.caseType}`,
+      "",
+      "A member of the firm will contact you if any additional details are needed.",
+    ].join("\n"),
+  });
+  console.log(`Client Resend confirmation email sent to ${booking.email}`);
+
+  await sendResendEmail({
+    to: firmEmail,
+    subject: `New booking request: ${booking.fullName}`,
+    text: [
+      "A new consultation booking request was received.",
+      "",
+      `Name: ${booking.fullName}`,
+      `Email: ${booking.email}`,
+      `Phone: ${booking.phone}`,
+      `Case type: ${booking.caseType}`,
+      `Appointment type: ${appointmentType}`,
+      `Consultation length: ${durationLine}`,
+      `Consultant: ${booking.consultant}`,
+      `Appointment: ${appointmentLine}`,
+      `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
+      "",
+      "Client message:",
+      booking.message,
+    ].join("\n"),
+    attachments: getResendAttachments(booking),
+  });
+  console.log(`Firm Resend booking email sent to ${firmEmail}`);
+}
+
+async function sendResendEmail({ to, subject, text, attachments = [] }) {
+  if (!firmEmail) {
+    throw new Error("FIRM_EMAIL is not configured in Render.");
+  }
+
+  const from = process.env.RESEND_FROM || process.env.EMAIL_FROM || firmEmail;
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject,
+      text,
+      attachments,
+    }),
+  });
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.message || payload.error || "Resend could not send the email.");
+  }
+
+  return payload;
+}
+
+function getResendAttachments(booking) {
+  return (booking.documents || [])
+    .filter((document) => document.path && fs.existsSync(document.path))
+    .map((document) => ({
+      filename: `${document.label} - ${document.originalName}`,
+      content: fs.readFileSync(document.path).toString("base64"),
+    }));
 }
 
 function createEmailTransporter() {
