@@ -20,10 +20,15 @@ let availability = { consultants: [] };
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-  adminPin = new FormData(loginForm).get("pin");
-  await loadAvailability();
-  loginForm.hidden = true;
-  editorForm.hidden = false;
+  adminPin = String(new FormData(loginForm).get("pin") || "").trim();
+
+  try {
+    await loadAvailability(true);
+    loginForm.hidden = true;
+    editorForm.hidden = false;
+  } catch (error) {
+    adminStatus.textContent = error.message;
+  }
 });
 
 addConsultantButton.addEventListener("click", () => {
@@ -47,7 +52,10 @@ editorForm.addEventListener("submit", async (event) => {
         "Content-Type": "application/json",
         "X-Admin-Pin": adminPin,
       },
-      body: JSON.stringify(availability),
+      body: JSON.stringify({
+        pin: adminPin,
+        availability,
+      }),
     });
 
     const payload = await response.json();
@@ -64,9 +72,19 @@ editorForm.addEventListener("submit", async (event) => {
   }
 });
 
-async function loadAvailability() {
-  const response = await fetch("/api/availability");
+async function loadAvailability(validatePin = false) {
+  const url = validatePin
+    ? `/api/admin/availability?pin=${encodeURIComponent(adminPin)}`
+    : "/api/availability";
+  const response = await fetch(url, {
+    headers: validatePin ? { "X-Admin-Pin": adminPin } : {},
+  });
   availability = await response.json();
+
+  if (!response.ok) {
+    throw new Error(availability.error || "Could not load availability.");
+  }
+
   renderAvailability();
 }
 

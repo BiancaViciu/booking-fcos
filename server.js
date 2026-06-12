@@ -76,12 +76,20 @@ app.get("/api/availability", (request, response) => {
   response.json(readAvailability());
 });
 
-app.post("/api/admin/availability", (request, response) => {
+app.get("/api/admin/availability", (request, response) => {
   if (!isValidAdminRequest(request)) {
-    return response.status(401).json({ error: "Invalid admin PIN." });
+    return response.status(401).json({ error: getAdminPinError() });
   }
 
-  const availability = normalizeAvailability(request.body);
+  response.json(readAvailability());
+});
+
+app.post("/api/admin/availability", (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  const availability = normalizeAvailability(request.body.availability || request.body);
 
   if (!availability) {
     return response.status(400).json({ error: "Availability data is not valid." });
@@ -342,10 +350,18 @@ function getConsultants(availability) {
 }
 
 function isValidAdminRequest(request) {
-  const configuredPin = process.env.ADMIN_PIN || "";
-  const requestPin = request.headers["x-admin-pin"] || request.body?.pin || "";
+  const configuredPin = String(process.env.ADMIN_PIN || "").trim();
+  const requestPin = String(
+    request.get("x-admin-pin") || request.query?.pin || request.body?.pin || "",
+  ).trim();
 
   return Boolean(configuredPin) && requestPin === configuredPin;
+}
+
+function getAdminPinError() {
+  return process.env.ADMIN_PIN
+    ? "Invalid admin PIN."
+    : "Admin PIN is not configured in Render. Add ADMIN_PIN in Environment Variables.";
 }
 
 function isActiveBooking(booking) {
