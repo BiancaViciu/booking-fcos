@@ -486,6 +486,13 @@ select {
   padding: 0 11px;
 }
 
+input[type="file"] {
+  min-height: auto;
+  padding: 10px;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
 textarea {
   resize: vertical;
   min-height: 92px;

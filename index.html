@@ -167,12 +167,29 @@
             ></textarea>
           </label>
 
+          <fieldset>
+            <legend>Documents</legend>
+            <p class="info-note">
+              Required before payment: upload ID and proof of address. Accepted formats: PDF, JPG or PNG, up to 10MB each.
+            </p>
+            <div class="form-grid">
+              <label>
+                ID document
+                <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+              </label>
+              <label>
+                Proof of address
+                <input name="proofOfAddress" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+              </label>
+            </div>
+          </fieldset>
+
           <label class="consent">
             <input name="consent" type="checkbox" required />
             <span>I agree to be contacted about this appointment request.</span>
           </label>
 
-          <button class="submit-button" id="submitButton" type="submit">
+          <button class="submit-button" id="submitButton" type="submit" disabled>
             Continue to payment
           </button>
           <p class="status" id="formStatus" role="status" aria-live="polite"></p>

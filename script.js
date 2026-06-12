@@ -36,6 +36,7 @@ let selectedDate = null;
 let selectedTime = "";
 let bookedSlots = [];
 let availability = defaultAvailability;
+let isSubmitting = false;
 
 function startOfDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -124,6 +125,7 @@ function renderCalendar() {
       renderCalendar();
       renderSlots();
       updateSummary();
+      updatePaymentButtonState();
     });
 
     calendarGrid.appendChild(button);
@@ -158,6 +160,7 @@ function renderSlots() {
       formStatus.textContent = "";
       renderSlots();
       updateSummary();
+      updatePaymentButtonState();
     });
 
     timeSlots.appendChild(button);
@@ -339,14 +342,43 @@ function renderConsultants() {
   }
 }
 
+function updatePaymentButtonState() {
+  const formData = new FormData(bookingForm);
+  const idDocument = bookingForm.elements.idDocument?.files?.[0];
+  const proofOfAddress = bookingForm.elements.proofOfAddress?.files?.[0];
+  const hasAppointment = Boolean(selectedDate && selectedTime);
+  const hasDocuments = Boolean(idDocument && proofOfAddress);
+  const requiredFieldsComplete = [
+    "fullName",
+    "email",
+    "phone",
+    "caseType",
+    "consultant",
+    "message",
+  ].every((name) => Boolean(String(formData.get(name) || "").trim()));
+  const consentChecked = Boolean(bookingForm.elements.consent?.checked);
+
+  submitButton.disabled = Boolean(
+    isSubmitting ||
+      !hasAppointment ||
+      !hasDocuments ||
+      !requiredFieldsComplete ||
+      !consentChecked,
+  );
+}
+
 bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], select[name="consultant"]').forEach((control) => {
   control.addEventListener("change", () => {
     selectedTime = "";
     formStatus.textContent = "";
     renderSlots();
     updateSummary();
+    updatePaymentButtonState();
   });
 });
+
+bookingForm.addEventListener("input", updatePaymentButtonState);
+bookingForm.addEventListener("change", updatePaymentButtonState);
 
 bookingForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -368,29 +400,17 @@ bookingForm.addEventListener("submit", async (event) => {
   }
 
   const formData = new FormData(bookingForm);
-  const booking = {
-    date: dateKey,
-    time: selectedTime,
-    fullName: formData.get("fullName"),
-    email: formData.get("email"),
-    phone: formData.get("phone"),
-    caseType: formData.get("caseType"),
-    appointmentMode: formData.get("appointmentMode"),
-    duration: formData.get("duration"),
-    consultant: formData.get("consultant"),
-    message: formData.get("message"),
-  };
+  formData.set("date", dateKey);
+  formData.set("time", selectedTime);
 
-  submitButton.disabled = true;
+  isSubmitting = true;
+  updatePaymentButtonState();
   submitButton.textContent = "Opening Stripe...";
 
   try {
     const response = await fetch("/api/bookings", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(booking),
+      body: formData,
     });
 
     const payload = await response.json();
@@ -400,10 +420,10 @@ bookingForm.addEventListener("submit", async (event) => {
     }
 
     bookedSlots.push({
-      date: booking.date,
-      time: booking.time,
-      appointmentMode: booking.appointmentMode,
-      consultant: booking.consultant,
+      date: dateKey,
+      time: selectedTime,
+      appointmentMode: formData.get("appointmentMode"),
+      consultant: formData.get("consultant"),
     });
 
     if (payload.paymentUrl) {
@@ -414,7 +434,8 @@ bookingForm.addEventListener("submit", async (event) => {
     showReceipt(payload.booking);
   } catch (error) {
     formStatus.textContent = error.message;
-    submitButton.disabled = false;
+    isSubmitting = false;
+    updatePaymentButtonState();
     submitButton.textContent = "Continue to payment";
   }
 });
@@ -443,3 +464,4 @@ updateSummary();
 loadBookedSlots();
 loadAvailability();
 handlePaymentReturn();
+updatePaymentButtonState();

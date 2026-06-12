@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const express = require("express");
+const multer = require("multer");
 const nodemailer = require("nodemailer");
 const Stripe = require("stripe");
 
@@ -11,6 +12,7 @@ const app = express();
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY || "");
 const publicDir = __dirname;
 const dataDir = path.join(__dirname, "data");
+const uploadDir = path.join(dataDir, "uploads");
 const bookingsPath = path.join(dataDir, "bookings.json");
 const availabilityPath = path.join(__dirname, "availability.json");
 
@@ -23,6 +25,33 @@ const vatRate = Number(process.env.VAT_RATE || 20);
 const stripeVatTaxRateId = process.env.STRIPE_VAT_TAX_RATE_ID || "";
 
 fs.mkdirSync(dataDir, { recursive: true });
+fs.mkdirSync(uploadDir, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (request, file, callback) => {
+      callback(null, uploadDir);
+    },
+    filename: (request, file, callback) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "-");
+      callback(null, `${Date.now()}-${crypto.randomUUID()}-${safeName}`);
+    },
+  }),
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 2,
+  },
+  fileFilter: (request, file, callback) => {
+    const allowedMimeTypes = ["application/pdf", "image/jpeg", "image/png"];
+
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      callback(new Error("Documents must be PDF, JPG or PNG files."));
+      return;
+    }
+
+    callback(null, true);
+  },
+});
 
 app.post(
   "/api/stripe-webhook",
@@ -120,15 +149,30 @@ app.get("/api/booking-status", (request, response) => {
   });
 });
 
-app.post("/api/bookings", async (request, response) => {
+app.post(
+  "/api/bookings",
+  upload.fields([
+    { name: "idDocument", maxCount: 1 },
+    { name: "proofOfAddress", maxCount: 1 },
+  ]),
+  async (request, response) => {
   if (!process.env.STRIPE_SECRET_KEY) {
+    cleanupUploadedFiles(request);
     return response.status(500).json({ error: "Stripe is not configured yet." });
   }
 
   const booking = normalizeBooking(request.body);
 
   if (!booking) {
+    cleanupUploadedFiles(request);
     return response.status(400).json({ error: "Please complete all required booking fields." });
+  }
+
+  if (!request.files?.idDocument?.[0] || !request.files?.proofOfAddress?.[0]) {
+    cleanupUploadedFiles(request);
+    return response.status(400).json({
+      error: "Please upload both ID and proof of address before payment.",
+    });
   }
 
   const bookings = readBookings();
@@ -143,6 +187,7 @@ app.post("/api/bookings", async (request, response) => {
   );
 
   if (slotTaken) {
+    cleanupUploadedFiles(request);
     return response.status(409).json({ error: "That appointment time is no longer available." });
   }
 
@@ -151,6 +196,7 @@ app.post("/api/bookings", async (request, response) => {
     id: bookingId,
     status: "awaiting_payment",
     createdAt: new Date().toISOString(),
+    documents: collectUploadedDocuments(request),
     ...booking,
   };
 
@@ -188,6 +234,7 @@ app.post("/api/bookings", async (request, response) => {
       },
     });
   } catch (error) {
+    cleanupUploadedFiles(request);
     console.error("Stripe Checkout error:", error);
     response.status(500).json({ error: "Could not start Stripe payment." });
   }
@@ -246,6 +293,53 @@ function readBookings() {
 
 function writeBookings(bookings) {
   fs.writeFileSync(bookingsPath, JSON.stringify(bookings, null, 2));
+}
+
+function collectUploadedDocuments(request) {
+  const files = request.files || {};
+  const documents = [];
+
+  if (files.idDocument?.[0]) {
+    documents.push(formatUploadedDocument("ID document", files.idDocument[0]));
+  }
+
+  if (files.proofOfAddress?.[0]) {
+    documents.push(formatUploadedDocument("Proof of address", files.proofOfAddress[0]));
+  }
+
+  return documents;
+}
+
+function cleanupUploadedFiles(request) {
+  Object.values(request.files || {})
+    .flat()
+    .forEach((file) => {
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        // Nothing else to do if a temporary upload is already gone.
+      }
+    });
+}
+
+function cleanupBookingDocuments(booking) {
+  (booking.documents || []).forEach((document) => {
+    try {
+      fs.unlinkSync(document.path);
+    } catch {
+      // Keep the booking flow resilient if the file has already been removed.
+    }
+  });
+}
+
+function formatUploadedDocument(label, file) {
+  return {
+    label,
+    originalName: file.originalname,
+    path: file.path,
+    mimeType: file.mimetype,
+    size: file.size,
+  };
 }
 
 function readAvailability() {
@@ -421,6 +515,8 @@ async function confirmPaidBooking(session) {
   try {
     await sendBookingEmails(booking);
     booking.emailStatus = "sent";
+    cleanupBookingDocuments(booking);
+    booking.documentsDeletedAt = new Date().toISOString();
   } catch (error) {
     booking.emailStatus = "failed";
     booking.emailError = error.message;
@@ -482,9 +578,15 @@ async function sendBookingEmails(booking) {
       `Consultation length: ${durationLine}`,
       `Consultant: ${booking.consultant}`,
       `Appointment: ${appointmentLine}`,
+      `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
       "",
       "Client message:",
       booking.message,
     ].join("\n"),
+    attachments: (booking.documents || []).map((document) => ({
+      filename: `${document.label} - ${document.originalName}`,
+      path: document.path,
+      contentType: document.mimeType,
+    })),
   });
 }
