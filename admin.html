@@ -31,14 +31,29 @@
         <button class="submit-button" type="submit">Unlock admin</button>
       </form>
 
-      <form class="admin-editor" id="adminEditor" hidden>
-        <div class="admin-toolbar">
-          <button class="submit-button" id="addConsultant" type="button">Add solicitor</button>
-          <button class="submit-button" type="submit">Save availability</button>
+      <section class="admin-workspace" id="adminWorkspace" hidden>
+        <div class="admin-tabs" role="tablist" aria-label="Admin sections">
+          <button class="admin-tab is-active" type="button" data-tab="availability">Availability</button>
+          <button class="admin-tab" type="button" data-tab="bookings">Bookings</button>
         </div>
-        <div class="admin-status" id="adminStatus" role="status" aria-live="polite"></div>
-        <div class="consultant-list" id="consultantList"></div>
-      </form>
+
+        <form class="admin-editor" id="adminEditor">
+          <div class="admin-toolbar">
+            <button class="submit-button" id="addConsultant" type="button">Add solicitor</button>
+            <button class="submit-button" type="submit">Save availability</button>
+          </div>
+          <div class="admin-status" id="adminStatus" role="status" aria-live="polite"></div>
+          <div class="consultant-list" id="consultantList"></div>
+        </form>
+
+        <section class="admin-bookings" id="adminBookings" hidden>
+          <div class="admin-toolbar">
+            <h2>Bookings</h2>
+            <button class="submit-button" id="refreshBookings" type="button">Refresh bookings</button>
+          </div>
+          <div class="booking-list" id="bookingList"></div>
+        </section>
+      </section>
     </main>
 
     <template id="consultantTemplate">
@@ -76,6 +91,21 @@
             </label>
           </section>
         </div>
+      </article>
+    </template>
+
+    <template id="bookingAdminTemplate">
+      <article class="admin-booking-card">
+        <div class="admin-booking-card__head">
+          <div>
+            <h3 class="booking-client"></h3>
+            <p class="booking-meta"></p>
+          </div>
+          <span class="booking-status"></span>
+        </div>
+        <dl class="booking-details"></dl>
+        <div class="booking-message"></div>
+        <div class="booking-documents"></div>
       </article>
     </template>
 

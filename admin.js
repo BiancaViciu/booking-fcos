@@ -1,9 +1,14 @@
 const loginForm = document.querySelector("#adminLogin");
 const editorForm = document.querySelector("#adminEditor");
+const adminWorkspace = document.querySelector("#adminWorkspace");
+const adminBookings = document.querySelector("#adminBookings");
 const consultantList = document.querySelector("#consultantList");
 const consultantTemplate = document.querySelector("#consultantTemplate");
+const bookingAdminTemplate = document.querySelector("#bookingAdminTemplate");
 const addConsultantButton = document.querySelector("#addConsultant");
+const refreshBookingsButton = document.querySelector("#refreshBookings");
 const adminStatus = document.querySelector("#adminStatus");
+const bookingList = document.querySelector("#bookingList");
 
 const days = [
   ["1", "Mon"],
@@ -25,11 +30,29 @@ loginForm.addEventListener("submit", async (event) => {
   try {
     await loadAvailability(true);
     loginForm.hidden = true;
-    editorForm.hidden = false;
+    adminWorkspace.hidden = false;
+    await loadBookings();
   } catch (error) {
     adminStatus.textContent = error.message;
   }
 });
+
+document.querySelectorAll(".admin-tab").forEach((tab) => {
+  tab.addEventListener("click", async () => {
+    document.querySelectorAll(".admin-tab").forEach((item) => item.classList.remove("is-active"));
+    tab.classList.add("is-active");
+
+    const activeTab = tab.dataset.tab;
+    editorForm.hidden = activeTab !== "availability";
+    adminBookings.hidden = activeTab !== "bookings";
+
+    if (activeTab === "bookings") {
+      await loadBookings();
+    }
+  });
+});
+
+refreshBookingsButton.addEventListener("click", loadBookings);
 
 addConsultantButton.addEventListener("click", () => {
   availability.consultants.push({
@@ -153,4 +176,113 @@ function collectMode(card, mode) {
     .filter(Boolean);
 
   return { weekdays, times };
+}
+
+async function loadBookings() {
+  bookingList.innerHTML = '<p class="admin-empty">Loading bookings...</p>';
+
+  try {
+    const response = await fetch(`/api/admin/bookings?pin=${encodeURIComponent(adminPin)}`, {
+      headers: { "X-Admin-Pin": adminPin },
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not load bookings.");
+    }
+
+    renderBookings(payload.bookings || []);
+  } catch (error) {
+    bookingList.innerHTML = `<p class="admin-empty">${error.message}</p>`;
+  }
+}
+
+function renderBookings(bookings) {
+  bookingList.innerHTML = "";
+
+  if (!bookings.length) {
+    bookingList.innerHTML = '<p class="admin-empty">No bookings yet.</p>';
+    return;
+  }
+
+  bookings.forEach((booking) => {
+    const card = bookingAdminTemplate.content.cloneNode(true);
+    card.querySelector(".booking-client").textContent = booking.fullName;
+    card.querySelector(".booking-meta").textContent =
+      `${booking.date} at ${booking.time} · ${booking.duration} min · ${formatMode(booking.appointmentMode)}`;
+    card.querySelector(".booking-status").textContent = booking.status.replace("_", " ");
+
+    card.querySelector(".booking-details").innerHTML = [
+      ["Consultant", booking.consultant],
+      ["Case type", booking.caseType],
+      ["Email", booking.email],
+      ["Phone", booking.phone],
+      ["Payment", booking.paymentStatus || "Not completed"],
+      ["Email status", booking.emailStatus || "Not sent"],
+      ["Created", formatDateTime(booking.createdAt)],
+      ["Paid", booking.paidAt ? formatDateTime(booking.paidAt) : "-"],
+    ]
+      .map(([label, value]) => `<div><dt>${label}</dt><dd>${value || "-"}</dd></div>`)
+      .join("");
+
+    card.querySelector(".booking-message").textContent = booking.message || "";
+
+    const documents = card.querySelector(".booking-documents");
+    documents.innerHTML = "<h4>Documents</h4>";
+
+    if (!booking.documents?.length) {
+      documents.insertAdjacentHTML("beforeend", '<p class="admin-empty">No documents uploaded.</p>');
+    } else {
+      booking.documents.forEach((document) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "document-button";
+        button.disabled = !document.available;
+        button.textContent = document.available
+          ? `Download ${document.label}`
+          : `${document.label} unavailable`;
+        button.addEventListener("click", () => downloadDocument(booking.id, document.index, document.originalName));
+        documents.appendChild(button);
+      });
+    }
+
+    bookingList.appendChild(card);
+  });
+}
+
+async function downloadDocument(bookingId, documentIndex, filename) {
+  const response = await fetch(
+    `/api/admin/bookings/${bookingId}/documents/${documentIndex}?pin=${encodeURIComponent(adminPin)}`,
+    { headers: { "X-Admin-Pin": adminPin } },
+  );
+
+  if (!response.ok) {
+    alert("Could not download document.");
+    return;
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename || "document";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatMode(mode) {
+  return mode === "inPerson" ? "In person" : "Online";
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

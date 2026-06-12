@@ -113,6 +113,35 @@ app.get("/api/admin/availability", (request, response) => {
   response.json(readAvailability());
 });
 
+app.get("/api/admin/bookings", (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  const bookings = readBookings()
+    .slice()
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map(formatAdminBooking);
+
+  response.json({ bookings });
+});
+
+app.get("/api/admin/bookings/:bookingId/documents/:documentIndex", (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  const booking = readBookings().find((item) => item.id === request.params.bookingId);
+  const documentIndex = Number(request.params.documentIndex);
+  const document = booking?.documents?.[documentIndex];
+
+  if (!booking || !document || !document.path || !fs.existsSync(document.path)) {
+    return response.status(404).json({ error: "Document was not found." });
+  }
+
+  response.download(document.path, `${document.label} - ${document.originalName}`);
+});
+
 app.post("/api/admin/availability", (request, response) => {
   if (!isValidAdminRequest(request)) {
     return response.status(401).json({ error: getAdminPinError() });
@@ -293,6 +322,34 @@ function readBookings() {
 
 function writeBookings(bookings) {
   fs.writeFileSync(bookingsPath, JSON.stringify(bookings, null, 2));
+}
+
+function formatAdminBooking(booking) {
+  return {
+    id: booking.id,
+    status: booking.status,
+    createdAt: booking.createdAt,
+    paidAt: booking.paidAt || "",
+    paymentStatus: booking.paymentStatus || "",
+    date: booking.date,
+    time: booking.time,
+    fullName: booking.fullName,
+    email: booking.email,
+    phone: booking.phone,
+    caseType: booking.caseType,
+    appointmentMode: booking.appointmentMode,
+    duration: booking.duration,
+    consultant: booking.consultant,
+    message: booking.message,
+    emailStatus: booking.emailStatus || "",
+    documents: (booking.documents || []).map((document, index) => ({
+      index,
+      label: document.label,
+      originalName: document.originalName,
+      size: document.size,
+      available: Boolean(document.path && fs.existsSync(document.path)),
+    })),
+  };
 }
 
 function collectUploadedDocuments(request) {
@@ -515,8 +572,6 @@ async function confirmPaidBooking(session) {
   try {
     await sendBookingEmails(booking);
     booking.emailStatus = "sent";
-    cleanupBookingDocuments(booking);
-    booking.documentsDeletedAt = new Date().toISOString();
   } catch (error) {
     booking.emailStatus = "failed";
     booking.emailError = error.message;
