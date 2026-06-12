@@ -11,14 +11,19 @@ const bookingPanel = document.querySelector(".booking-panel");
 const receiptTemplate = document.querySelector("#bookingTemplate");
 
 const defaultAvailability = {
-  online: {
-    weekdays: [1, 2, 3, 4, 5],
-    times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
-  },
-  inPerson: {
-    weekdays: [2, 3, 4],
-    times: ["10:00", "11:00", "14:00", "15:00"],
-  },
+  consultants: [
+    {
+      name: "Mihaela Pădure",
+      online: {
+        weekdays: [1, 2, 3, 4, 5],
+        times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
+      },
+      inPerson: {
+        weekdays: [2, 3, 4],
+        times: ["10:00", "11:00", "14:00", "15:00"],
+      },
+    },
+  ],
 };
 const durationLabels = {
   15: "15 minutes - £140 + VAT",
@@ -254,10 +259,13 @@ async function loadAvailability() {
     }
 
     availability = await response.json();
+    renderConsultants();
+    renderCalendar();
     renderSlots();
     updateSummary();
   } catch {
     availability = defaultAvailability;
+    renderConsultants();
   }
 }
 
@@ -274,11 +282,12 @@ function getSelectedDuration() {
 }
 
 function getSelectedConsultant() {
-  return new FormData(bookingForm).get("consultant") || "First available solicitor";
+  return new FormData(bookingForm).get("consultant") || getConsultants()[0] || "";
 }
 
 function getModeAvailability() {
-  const modeAvailability = availability[getSelectedMode()];
+  const consultant = getConsultantAvailability();
+  const modeAvailability = consultant?.[getSelectedMode()];
 
   if (Array.isArray(modeAvailability)) {
     return {
@@ -296,6 +305,38 @@ function getModeTimes() {
 
 function getModeWeekdays() {
   return getModeAvailability().weekdays || [1, 2, 3, 4, 5];
+}
+
+function getConsultants() {
+  return (availability.consultants || []).map((consultant) => consultant.name);
+}
+
+function getConsultantAvailability() {
+  const selectedConsultant = getSelectedConsultant();
+  return (availability.consultants || []).find(
+    (consultant) => consultant.name === selectedConsultant,
+  );
+}
+
+function renderConsultants() {
+  const select = bookingForm.elements.consultant;
+  const selected = select.value;
+  const consultants = getConsultants();
+
+  select.innerHTML = '<option value="">Select one</option>';
+
+  consultants.forEach((name) => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+
+  if (consultants.includes(selected)) {
+    select.value = selected;
+  } else if (consultants.length) {
+    select.value = consultants[0];
+  }
 }
 
 bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], select[name="consultant"]').forEach((control) => {

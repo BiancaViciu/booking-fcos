@@ -76,6 +76,21 @@ app.get("/api/availability", (request, response) => {
   response.json(readAvailability());
 });
 
+app.post("/api/admin/availability", (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: "Invalid admin PIN." });
+  }
+
+  const availability = normalizeAvailability(request.body);
+
+  if (!availability) {
+    return response.status(400).json({ error: "Availability data is not valid." });
+  }
+
+  writeAvailability(availability);
+  response.json({ availability });
+});
+
 app.get("/api/booking-status", (request, response) => {
   const sessionId = String(request.query.session_id || "");
   const booking = readBookings().find((item) => item.checkoutSessionId === sessionId);
@@ -194,6 +209,9 @@ function normalizeBooking(input) {
   const hasValidTime = /^\d{2}:\d{2}$/.test(booking.time);
   const hasValidMode = ["online", "inPerson"].includes(booking.appointmentMode);
   const hasValidDuration = ["15", "30"].includes(booking.duration);
+  const hasValidConsultant =
+    booking.consultant === "First available solicitor" ||
+    getConsultants(readAvailability()).includes(booking.consultant);
 
   if (
     !hasRequiredFields ||
@@ -201,7 +219,8 @@ function normalizeBooking(input) {
     !hasValidDate ||
     !hasValidTime ||
     !hasValidMode ||
-    !hasValidDuration
+    !hasValidDuration ||
+    !hasValidConsultant
   ) {
     return null;
   }
@@ -223,19 +242,110 @@ function writeBookings(bookings) {
 
 function readAvailability() {
   try {
-    return JSON.parse(fs.readFileSync(availabilityPath, "utf8"));
+    return normalizeAvailability(JSON.parse(fs.readFileSync(availabilityPath, "utf8"))) || getDefaultAvailability();
   } catch {
+    return getDefaultAvailability();
+  }
+}
+
+function writeAvailability(availability) {
+  fs.writeFileSync(availabilityPath, JSON.stringify(availability, null, 2));
+}
+
+function getDefaultAvailability() {
+  return {
+    consultants: [
+      {
+        name: "Mihaela Pădure",
+        online: {
+          weekdays: [1, 2, 3, 4, 5],
+          times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
+        },
+        inPerson: {
+          weekdays: [2, 3, 4],
+          times: ["10:00", "11:00", "14:00", "15:00"],
+        },
+      },
+      {
+        name: "Sandra Zăuleț",
+        online: {
+          weekdays: [1, 3, 5],
+          times: ["09:30", "10:30", "12:00", "14:30"],
+        },
+        inPerson: {
+          weekdays: [1, 4],
+          times: ["11:00", "15:00"],
+        },
+      },
+      {
+        name: "Eleonora Sorodoc",
+        online: {
+          weekdays: [2, 4],
+          times: ["10:00", "12:00", "14:00", "16:00"],
+        },
+        inPerson: {
+          weekdays: [3],
+          times: ["10:00", "13:00"],
+        },
+      },
+    ],
+  };
+}
+
+function normalizeAvailability(input) {
+  if (input?.consultants && Array.isArray(input.consultants)) {
+    const consultants = input.consultants
+      .map((consultant) => ({
+        name: String(consultant.name || "").trim(),
+        online: normalizeModeAvailability(consultant.online),
+        inPerson: normalizeModeAvailability(consultant.inPerson),
+      }))
+      .filter((consultant) => consultant.name);
+
+    return consultants.length ? { consultants } : null;
+  }
+
+  if (input?.online || input?.inPerson) {
     return {
-      online: {
-        weekdays: [1, 2, 3, 4, 5],
-        times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
-      },
-      inPerson: {
-        weekdays: [2, 3, 4],
-        times: ["10:00", "11:00", "14:00", "15:00"],
-      },
+      consultants: getDefaultAvailability().consultants.map((consultant) => ({
+        name: consultant.name,
+        online: normalizeModeAvailability(input.online),
+        inPerson: normalizeModeAvailability(input.inPerson),
+      })),
     };
   }
+
+  return null;
+}
+
+function normalizeModeAvailability(modeAvailability = {}) {
+  const weekdays = Array.isArray(modeAvailability.weekdays)
+    ? modeAvailability.weekdays
+        .map((day) => Number(day))
+        .filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+    : [1, 2, 3, 4, 5];
+
+  const times = Array.isArray(modeAvailability.times)
+    ? modeAvailability.times
+        .map((time) => String(time).trim())
+        .filter((time) => /^\d{2}:\d{2}$/.test(time))
+    : [];
+
+  return {
+    weekdays: [...new Set(weekdays)].sort((a, b) => a - b),
+    times: [...new Set(times)].sort(),
+  };
+}
+
+function getConsultants(availability) {
+  return (availability.consultants || []).map((consultant) => consultant.name);
+}
+
+function isValidAdminRequest(request) {
+  const configuredPin = process.env.ADMIN_PIN || "";
+  const requestPin = request.headers["x-admin-pin"] || request.body?.pin || "";
+
+  return Boolean(configuredPin) && requestPin === configuredPin;
 }
 
 function isActiveBooking(booking) {
@@ -292,7 +402,16 @@ async function confirmPaidBooking(session) {
     typeof session.payment_intent === "string" ? session.payment_intent : "";
   writeBookings(bookings);
 
-  await sendBookingEmails(booking);
+  try {
+    await sendBookingEmails(booking);
+    booking.emailStatus = "sent";
+  } catch (error) {
+    booking.emailStatus = "failed";
+    booking.emailError = error.message;
+    console.error("Booking confirmed, but email failed:", error);
+  }
+
+  writeBookings(bookings);
 }
 
 async function sendBookingEmails(booking) {

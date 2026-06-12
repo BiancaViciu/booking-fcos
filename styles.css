@@ -612,6 +612,151 @@ textarea:focus {
   font-weight: 750;
 }
 
+.admin-page {
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.97), rgba(247, 247, 251, 0.94)),
+    url("assets/law-office-consultation.png") center / cover fixed;
+}
+
+.admin-shell {
+  position: relative;
+  z-index: 1;
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 42px 0 72px;
+}
+
+.admin-hero {
+  max-width: 720px;
+  margin-bottom: 28px;
+}
+
+.admin-hero h1 {
+  margin: 0;
+  color: var(--navy);
+  font-size: clamp(2.6rem, 5vw, 5rem);
+  line-height: 1;
+}
+
+.admin-hero p {
+  color: var(--muted);
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.admin-login,
+.admin-editor,
+.consultant-card {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: var(--shadow);
+}
+
+.admin-login {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 220px;
+  gap: 14px;
+  max-width: 640px;
+  padding: 24px;
+}
+
+.admin-editor {
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+}
+
+.admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-status {
+  min-height: 1.2em;
+  color: var(--magenta);
+  font-weight: 900;
+}
+
+.consultant-list {
+  display: grid;
+  gap: 18px;
+}
+
+.consultant-card {
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--line);
+  padding: 18px;
+}
+
+.consultant-card__head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 16px;
+}
+
+.remove-consultant {
+  min-height: 40px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--navy);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.mode-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  padding: 16px;
+  background: rgba(247, 247, 251, 0.72);
+}
+
+.mode-card h2 {
+  margin: 0;
+  color: var(--navy);
+  font-size: 1.2rem;
+}
+
+.admin-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.day-toggle {
+  display: grid;
+  gap: 4px;
+  place-items: center;
+  min-height: 42px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.72rem;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.day-toggle input {
+  width: 13px;
+  min-width: 13px;
+  min-height: 13px;
+  accent-color: var(--magenta);
+}
+
+.day-toggle:has(input:checked) {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+
 @media (max-width: 1240px) {
   .booking-app {
     grid-template-columns: 1fr;
@@ -697,7 +842,10 @@ textarea:focus {
 
   .slots,
   .form-grid,
-  .choice-grid.two {
+  .choice-grid.two,
+  .mode-grid,
+  .admin-login,
+  .consultant-card__head {
     grid-template-columns: 1fr;
   }
 }

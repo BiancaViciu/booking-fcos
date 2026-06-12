@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FCOS Booking Admin</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="admin-page">
+    <header class="site-header">
+      <a class="brand" href="/" aria-label="Forest & Co booking">
+        <img src="fcos-logo.png" alt="Forest & Co Legal Experts" />
+      </a>
+    </header>
+
+    <main class="admin-shell">
+      <section class="admin-hero">
+        <p class="eyebrow">Booking admin</p>
+        <h1>Manage availability</h1>
+        <p>
+          Set online and in-person consultation availability for each solicitor.
+          Changes apply to the public booking calendar after saving.
+        </p>
+      </section>
+
+      <form class="admin-login" id="adminLogin">
+        <label>
+          Admin PIN
+          <input name="pin" type="password" autocomplete="current-password" required />
+        </label>
+        <button class="submit-button" type="submit">Unlock admin</button>
+      </form>
+
+      <form class="admin-editor" id="adminEditor" hidden>
+        <div class="admin-toolbar">
+          <button class="submit-button" id="addConsultant" type="button">Add solicitor</button>
+          <button class="submit-button" type="submit">Save availability</button>
+        </div>
+        <div class="admin-status" id="adminStatus" role="status" aria-live="polite"></div>
+        <div class="consultant-list" id="consultantList"></div>
+      </form>
+    </main>
+
+    <template id="consultantTemplate">
+      <article class="consultant-card">
+        <div class="consultant-card__head">
+          <label>
+            Solicitor name
+            <input class="consultant-name" required />
+          </label>
+          <button class="remove-consultant" type="button">Remove</button>
+        </div>
+
+        <div class="mode-grid">
+          <section class="mode-card" data-mode="online">
+            <h2>Online</h2>
+            <fieldset>
+              <legend>Available days</legend>
+              <div class="admin-days"></div>
+            </fieldset>
+            <label>
+              Times
+              <textarea class="admin-times" rows="4" placeholder="09:00, 10:00, 11:00"></textarea>
+            </label>
+          </section>
+
+          <section class="mode-card" data-mode="inPerson">
+            <h2>In person</h2>
+            <fieldset>
+              <legend>Available days</legend>
+              <div class="admin-days"></div>
+            </fieldset>
+            <label>
+              Times
+              <textarea class="admin-times" rows="4" placeholder="10:00, 11:00, 14:00"></textarea>
+            </label>
+          </section>
+        </div>
+      </article>
+    </template>
+
+    <script src="admin.js"></script>
+  </body>
+</html>
