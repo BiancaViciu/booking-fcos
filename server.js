@@ -113,10 +113,12 @@ app.get("/api/admin/availability", (request, response) => {
   response.json(readAvailability());
 });
 
-app.get("/api/admin/bookings", (request, response) => {
+app.get("/api/admin/bookings", async (request, response) => {
   if (!isValidAdminRequest(request)) {
     return response.status(401).json({ error: getAdminPinError() });
   }
+
+  await syncPaidBookings();
 
   const bookings = readBookings()
     .slice()
@@ -124,6 +126,20 @@ app.get("/api/admin/bookings", (request, response) => {
     .map(formatAdminBooking);
 
   response.json({ bookings });
+});
+
+app.post("/api/admin/sync-payments", async (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  try {
+    const result = await syncPaidBookings();
+    response.json(result);
+  } catch (error) {
+    console.error("Could not sync Stripe payments:", error);
+    response.status(500).json({ error: `Could not sync Stripe payments: ${error.message}` });
+  }
 });
 
 app.post("/api/admin/test-email", async (request, response) => {
@@ -202,7 +218,7 @@ app.post("/api/admin/availability", (request, response) => {
   response.json({ availability });
 });
 
-app.get("/api/booking-status", (request, response) => {
+app.get("/api/booking-status", async (request, response) => {
   const sessionId = String(request.query.session_id || "");
   const booking = readBookings().find((item) => item.checkoutSessionId === sessionId);
 
@@ -210,16 +226,22 @@ app.get("/api/booking-status", (request, response) => {
     return response.status(404).json({ error: "Booking was not found." });
   }
 
+  if (booking.status === "awaiting_payment") {
+    await syncPaidBooking(booking);
+  }
+
+  const refreshedBooking = readBookings().find((item) => item.checkoutSessionId === sessionId);
+
   response.json({
-    status: booking.status,
-    date: booking.date,
-    time: booking.time,
-    fullName: booking.fullName,
-    email: booking.email,
-    caseType: booking.caseType,
-    appointmentMode: booking.appointmentMode,
-    duration: booking.duration,
-    consultant: booking.consultant,
+    status: refreshedBooking.status,
+    date: refreshedBooking.date,
+    time: refreshedBooking.time,
+    fullName: refreshedBooking.fullName,
+    email: refreshedBooking.email,
+    caseType: refreshedBooking.caseType,
+    appointmentMode: refreshedBooking.appointmentMode,
+    duration: refreshedBooking.duration,
+    consultant: refreshedBooking.consultant,
   });
 });
 
@@ -625,6 +647,47 @@ async function confirmPaidBooking(session) {
   }
 
   writeBookings(bookings);
+}
+
+async function syncPaidBookings() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return { checked: 0, confirmed: 0 };
+  }
+
+  const bookings = readBookings().filter(
+    (booking) => booking.status === "awaiting_payment" && booking.checkoutSessionId,
+  );
+  let confirmed = 0;
+
+  for (const booking of bookings) {
+    const wasConfirmed = await syncPaidBooking(booking);
+
+    if (wasConfirmed) {
+      confirmed += 1;
+    }
+  }
+
+  return { checked: bookings.length, confirmed };
+}
+
+async function syncPaidBooking(booking) {
+  if (!process.env.STRIPE_SECRET_KEY || !booking.checkoutSessionId) {
+    return false;
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.retrieve(booking.checkoutSessionId);
+
+    if (session.payment_status === "paid") {
+      await confirmPaidBooking(session);
+      console.log(`Stripe payment sync confirmed booking ${booking.id}`);
+      return true;
+    }
+  } catch (error) {
+    console.error(`Could not sync Stripe session for booking ${booking.id}:`, error.message);
+  }
+
+  return false;
 }
 
 async function sendBookingEmails(booking) {

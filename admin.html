@@ -50,8 +50,10 @@
         <section class="admin-bookings" id="adminBookings" hidden>
           <div class="admin-toolbar">
             <h2>Bookings</h2>
+            <button class="submit-button" id="syncPayments" type="button">Sync Stripe payments</button>
             <button class="submit-button" id="refreshBookings" type="button">Refresh bookings</button>
           </div>
+          <div class="admin-status" id="bookingStatus" role="status" aria-live="polite"></div>
           <div class="booking-list" id="bookingList"></div>
         </section>
 

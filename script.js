@@ -218,7 +218,10 @@ async function handlePaymentReturn() {
   const params = new URLSearchParams(window.location.search);
 
   if (params.get("canceled") === "1") {
-    formStatus.textContent = "Payment was canceled. Your appointment has not been confirmed.";
+    showNoticeReceipt(
+      "Payment canceled",
+      "Your appointment has not been confirmed. You can choose a time and try the payment again.",
+    );
     return;
   }
 
@@ -229,11 +232,19 @@ async function handlePaymentReturn() {
   const sessionId = params.get("session_id");
 
   if (!sessionId) {
-    formStatus.textContent = "Payment completed, but the booking confirmation could not be loaded.";
+    showNoticeReceipt(
+      "Payment received",
+      "Your payment was received, but the booking confirmation could not be loaded on this screen. The firm will review it shortly.",
+    );
     return;
   }
 
-  for (let attempt = 0; attempt < 8; attempt += 1) {
+  showNoticeReceipt(
+    "Payment received",
+    "We are finalising your booking confirmation. This usually takes a few seconds.",
+  );
+
+  for (let attempt = 0; attempt < 30; attempt += 1) {
     try {
       const response = await fetch(`/api/booking-status?session_id=${encodeURIComponent(sessionId)}`);
       const booking = await response.json();
@@ -246,11 +257,13 @@ async function handlePaymentReturn() {
       // Stripe webhooks can arrive a moment after the customer returns from Checkout.
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
   }
 
-  formStatus.textContent =
-    "Payment was received. Your confirmation email will arrive as soon as Stripe finishes processing.";
+  showNoticeReceipt(
+    "Payment received",
+    "Your booking is being finalised and the confirmation email will follow shortly.",
+  );
 }
 
 async function loadAvailability() {
@@ -431,28 +444,49 @@ bookingForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    showReceipt(payload.booking);
+    throw new Error("Stripe payment could not be opened. Please try again.");
   } catch (error) {
-    formStatus.textContent = error.message;
+    showNoticeReceipt(
+      "Payment could not start",
+      `${error.message} If you already tried this appointment time, choose another time or wait a few minutes and try again.`,
+    );
     isSubmitting = false;
     updatePaymentButtonState();
     submitButton.textContent = "Continue to payment";
   }
 });
 
-function showReceipt(booking) {
+function showReceipt(booking, options = {}) {
   const receipt = receiptTemplate.content.cloneNode(true);
+  const receiptTitle = receipt.querySelector("#receiptTitle");
   const receiptText = receipt.querySelector("#receiptText");
   const newBookingButton = receipt.querySelector("#newBooking");
 
   document.body.classList.add("is-receipt-view");
-  receiptText.textContent = `${booking.fullName}, your ${booking.caseType.toLowerCase()} consultation request is set for ${formatDate(new Date(`${booking.date}T00:00:00`))} at ${booking.time}. A confirmation email has been sent to ${booking.email}.`;
+  receiptTitle.textContent = options.title || "Booking request sent";
+  receiptText.textContent =
+    options.message ||
+    `${booking.fullName}, your ${booking.caseType.toLowerCase()} consultation request is set for ${formatDate(new Date(`${booking.date}T00:00:00`))} at ${booking.time}. A confirmation email has been sent to ${booking.email}.`;
+  newBookingButton.textContent = options.buttonText || "Book another appointment";
 
   bookingPanel.replaceChildren(receipt);
 
   newBookingButton.addEventListener("click", () => {
     window.location.reload();
   });
+}
+
+function showNoticeReceipt(title, message) {
+  showReceipt(
+    {
+      fullName: "",
+      caseType: "",
+      date: toDateKey(today),
+      time: "",
+      email: "",
+    },
+    { title, message, buttonText: "Return to booking" },
+  );
 }
 
 prevMonthButton.addEventListener("click", () => changeMonth(-1));

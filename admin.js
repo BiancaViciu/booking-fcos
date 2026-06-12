@@ -8,8 +8,10 @@ const consultantTemplate = document.querySelector("#consultantTemplate");
 const bookingAdminTemplate = document.querySelector("#bookingAdminTemplate");
 const addConsultantButton = document.querySelector("#addConsultant");
 const refreshBookingsButton = document.querySelector("#refreshBookings");
+const syncPaymentsButton = document.querySelector("#syncPayments");
 const sendTestEmailButton = document.querySelector("#sendTestEmail");
 const adminStatus = document.querySelector("#adminStatus");
+const bookingStatus = document.querySelector("#bookingStatus");
 const emailTestStatus = document.querySelector("#emailTestStatus");
 const bookingList = document.querySelector("#bookingList");
 
@@ -57,6 +59,7 @@ document.querySelectorAll(".admin-tab").forEach((tab) => {
 });
 
 refreshBookingsButton.addEventListener("click", loadBookings);
+syncPaymentsButton.addEventListener("click", syncPayments);
 sendTestEmailButton.addEventListener("click", sendTestEmail);
 
 addConsultantButton.addEventListener("click", () => {
@@ -185,6 +188,7 @@ function collectMode(card, mode) {
 
 async function loadBookings() {
   bookingList.innerHTML = '<p class="admin-empty">Loading bookings...</p>';
+  bookingStatus.textContent = "";
 
   try {
     const response = await fetch(`/api/admin/bookings?pin=${encodeURIComponent(adminPin)}`, {
@@ -199,6 +203,34 @@ async function loadBookings() {
     renderBookings(payload.bookings || []);
   } catch (error) {
     bookingList.innerHTML = `<p class="admin-empty">${error.message}</p>`;
+  }
+}
+
+async function syncPayments() {
+  bookingStatus.textContent = "Checking Stripe payments...";
+  syncPaymentsButton.disabled = true;
+
+  try {
+    const response = await fetch("/api/admin/sync-payments", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Pin": adminPin,
+      },
+      body: JSON.stringify({ pin: adminPin }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not sync Stripe payments.");
+    }
+
+    bookingStatus.textContent = `Checked ${payload.checked} booking(s). Confirmed ${payload.confirmed} paid booking(s).`;
+    await loadBookings();
+  } catch (error) {
+    bookingStatus.textContent = error.message;
+  } finally {
+    syncPaymentsButton.disabled = false;
   }
 }
 
