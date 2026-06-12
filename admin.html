@@ -35,6 +35,7 @@
         <div class="admin-tabs" role="tablist" aria-label="Admin sections">
           <button class="admin-tab is-active" type="button" data-tab="availability">Availability</button>
           <button class="admin-tab" type="button" data-tab="bookings">Bookings</button>
+          <button class="admin-tab" type="button" data-tab="email">Email test</button>
         </div>
 
         <form class="admin-editor" id="adminEditor">
@@ -52,6 +53,17 @@
             <button class="submit-button" id="refreshBookings" type="button">Refresh bookings</button>
           </div>
           <div class="booking-list" id="bookingList"></div>
+        </section>
+
+        <section class="admin-bookings" id="adminEmailTest" hidden>
+          <div class="admin-toolbar">
+            <h2>Email test</h2>
+            <button class="submit-button" id="sendTestEmail" type="button">Send test email</button>
+          </div>
+          <p class="admin-empty">
+            Sends a test message to the firm email address configured in Render.
+          </p>
+          <div class="admin-status" id="emailTestStatus" role="status" aria-live="polite"></div>
         </section>
       </section>
     </main>

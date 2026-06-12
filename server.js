@@ -126,6 +126,51 @@ app.get("/api/admin/bookings", (request, response) => {
   response.json({ bookings });
 });
 
+app.post("/api/admin/test-email", async (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  try {
+    await sendTestEmail();
+    response.json({ message: `Test email sent to ${firmEmail}.` });
+  } catch (error) {
+    console.error("Test email failed:", error);
+    response.status(500).json({ error: `Email test failed: ${error.message}` });
+  }
+});
+
+app.post("/api/admin/bookings/:bookingId/resend-email", async (request, response) => {
+  if (!isValidAdminRequest(request)) {
+    return response.status(401).json({ error: getAdminPinError() });
+  }
+
+  const bookings = readBookings();
+  const booking = bookings.find((item) => item.id === request.params.bookingId);
+
+  if (!booking) {
+    return response.status(404).json({ error: "Booking was not found." });
+  }
+
+  if (booking.status !== "confirmed") {
+    return response.status(400).json({ error: "Only confirmed paid bookings can be emailed." });
+  }
+
+  try {
+    await sendBookingEmails(booking);
+    booking.emailStatus = "sent";
+    booking.emailError = "";
+    writeBookings(bookings);
+    response.json({ booking: formatAdminBooking(booking) });
+  } catch (error) {
+    booking.emailStatus = "failed";
+    booking.emailError = error.message;
+    writeBookings(bookings);
+    console.error("Manual booking email resend failed:", error);
+    response.status(500).json({ error: `Email resend failed: ${error.message}` });
+  }
+});
+
 app.get("/api/admin/bookings/:bookingId/documents/:documentIndex", (request, response) => {
   if (!isValidAdminRequest(request)) {
     return response.status(401).json({ error: getAdminPinError() });
@@ -572,6 +617,7 @@ async function confirmPaidBooking(session) {
   try {
     await sendBookingEmails(booking);
     booking.emailStatus = "sent";
+    console.log(`Booking confirmation emails sent for ${booking.id}`);
   } catch (error) {
     booking.emailStatus = "failed";
     booking.emailError = error.message;
@@ -587,15 +633,7 @@ async function sendBookingEmails(booking) {
     return;
   }
 
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
+  const transporter = createEmailTransporter();
 
   const appointmentLine = `${booking.date} at ${booking.time}`;
   const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
@@ -617,6 +655,8 @@ async function sendBookingEmails(booking) {
       "A member of the firm will contact you if any additional details are needed.",
     ].join("\n"),
   });
+
+  console.log(`Client confirmation email sent to ${booking.email}`);
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || firmEmail,
@@ -643,5 +683,47 @@ async function sendBookingEmails(booking) {
       path: document.path,
       contentType: document.mimeType,
     })),
+  });
+
+  console.log(`Firm booking email sent to ${firmEmail}`);
+}
+
+async function sendTestEmail() {
+  if (!firmEmail || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    throw new Error("Email is not configured in Render.");
+  }
+
+  const transporter = createEmailTransporter();
+
+  await transporter.sendMail({
+    from: process.env.EMAIL_FROM || firmEmail,
+    to: firmEmail,
+    subject: "Forest & Co booking email test",
+    text: [
+      "This is a test email from the Forest & Co booking website.",
+      "",
+      `Sent at: ${new Date().toISOString()}`,
+    ].join("\n"),
+  });
+
+  console.log(`Admin test email sent to ${firmEmail}`);
+}
+
+function createEmailTransporter() {
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: process.env.SMTP_SECURE === "true",
+    requireTLS: process.env.SMTP_REQUIRE_TLS === "true",
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 30000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 30000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 30000),
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+    tls: {
+      servername: process.env.SMTP_HOST,
+    },
   });
 }

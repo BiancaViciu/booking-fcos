@@ -2,12 +2,15 @@ const loginForm = document.querySelector("#adminLogin");
 const editorForm = document.querySelector("#adminEditor");
 const adminWorkspace = document.querySelector("#adminWorkspace");
 const adminBookings = document.querySelector("#adminBookings");
+const adminEmailTest = document.querySelector("#adminEmailTest");
 const consultantList = document.querySelector("#consultantList");
 const consultantTemplate = document.querySelector("#consultantTemplate");
 const bookingAdminTemplate = document.querySelector("#bookingAdminTemplate");
 const addConsultantButton = document.querySelector("#addConsultant");
 const refreshBookingsButton = document.querySelector("#refreshBookings");
+const sendTestEmailButton = document.querySelector("#sendTestEmail");
 const adminStatus = document.querySelector("#adminStatus");
+const emailTestStatus = document.querySelector("#emailTestStatus");
 const bookingList = document.querySelector("#bookingList");
 
 const days = [
@@ -45,6 +48,7 @@ document.querySelectorAll(".admin-tab").forEach((tab) => {
     const activeTab = tab.dataset.tab;
     editorForm.hidden = activeTab !== "availability";
     adminBookings.hidden = activeTab !== "bookings";
+    adminEmailTest.hidden = activeTab !== "email";
 
     if (activeTab === "bookings") {
       await loadBookings();
@@ -53,6 +57,7 @@ document.querySelectorAll(".admin-tab").forEach((tab) => {
 });
 
 refreshBookingsButton.addEventListener("click", loadBookings);
+sendTestEmailButton.addEventListener("click", sendTestEmail);
 
 addConsultantButton.addEventListener("click", () => {
   availability.consultants.push({
@@ -248,6 +253,15 @@ function renderBookings(bookings) {
       });
     }
 
+    if (booking.status === "confirmed") {
+      const resendButton = document.createElement("button");
+      resendButton.type = "button";
+      resendButton.className = "document-button";
+      resendButton.textContent = "Resend confirmation emails";
+      resendButton.addEventListener("click", () => resendBookingEmail(booking.id, resendButton));
+      documents.appendChild(resendButton);
+    }
+
     bookingList.appendChild(card);
   });
 }
@@ -272,6 +286,64 @@ async function downloadDocument(bookingId, documentIndex, filename) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+async function sendTestEmail() {
+  emailTestStatus.textContent = "Sending test email...";
+  sendTestEmailButton.disabled = true;
+
+  try {
+    const response = await fetch("/api/admin/test-email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Pin": adminPin,
+      },
+      body: JSON.stringify({ pin: adminPin }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not send test email.");
+    }
+
+    emailTestStatus.textContent = payload.message || "Test email sent.";
+  } catch (error) {
+    emailTestStatus.textContent = error.message;
+  } finally {
+    sendTestEmailButton.disabled = false;
+  }
+}
+
+async function resendBookingEmail(bookingId, button) {
+  button.disabled = true;
+  button.textContent = "Sending emails...";
+
+  try {
+    const response = await fetch(`/api/admin/bookings/${bookingId}/resend-email`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Admin-Pin": adminPin,
+      },
+      body: JSON.stringify({ pin: adminPin }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "Could not resend emails.");
+    }
+
+    button.textContent = "Emails sent";
+    await loadBookings();
+  } catch (error) {
+    button.textContent = error.message;
+  } finally {
+    setTimeout(() => {
+      button.disabled = false;
+      button.textContent = "Resend confirmation emails";
+    }, 2500);
+  }
 }
 
 function formatMode(mode) {
