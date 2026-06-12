@@ -570,6 +570,35 @@ textarea:focus {
   line-height: 1.6;
 }
 
+.is-receipt-view .booking-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-height: calc(100vh - 136px);
+  padding-top: clamp(42px, 7vw, 92px);
+  padding-bottom: clamp(42px, 7vw, 92px);
+}
+
+.is-receipt-view .intro {
+  display: none;
+}
+
+.is-receipt-view .booking-panel {
+  max-width: 720px;
+  min-height: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.is-receipt-view .booking-receipt {
+  min-height: 390px;
+  display: grid;
+  align-content: center;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow);
+}
+
 .site-footer {
   position: relative;
   z-index: 1;

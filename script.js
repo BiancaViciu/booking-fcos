@@ -383,6 +383,7 @@ function showReceipt(booking) {
   const receiptText = receipt.querySelector("#receiptText");
   const newBookingButton = receipt.querySelector("#newBooking");
 
+  document.body.classList.add("is-receipt-view");
   receiptText.textContent = `${booking.fullName}, your ${booking.caseType.toLowerCase()} consultation request is set for ${formatDate(new Date(`${booking.date}T00:00:00`))} at ${booking.time}. A confirmation email has been sent to ${booking.email}.`;
 
   bookingPanel.replaceChildren(receipt);
