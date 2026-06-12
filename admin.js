@@ -233,15 +233,17 @@ function renderBookings(bookings) {
     if (!booking.documents?.length) {
       documents.insertAdjacentHTML("beforeend", '<p class="admin-empty">No documents uploaded.</p>');
     } else {
-      booking.documents.forEach((document) => {
+      booking.documents.forEach((uploadedDocument) => {
         const button = document.createElement("button");
         button.type = "button";
         button.className = "document-button";
-        button.disabled = !document.available;
-        button.textContent = document.available
-          ? `Download ${document.label}`
-          : `${document.label} unavailable`;
-        button.addEventListener("click", () => downloadDocument(booking.id, document.index, document.originalName));
+        button.disabled = !uploadedDocument.available;
+        button.textContent = uploadedDocument.available
+          ? `Download ${uploadedDocument.label}`
+          : `${uploadedDocument.label} unavailable`;
+        button.addEventListener("click", () =>
+          downloadDocument(booking.id, uploadedDocument.index, uploadedDocument.originalName),
+        );
         documents.appendChild(button);
       });
     }
