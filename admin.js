@@ -64,7 +64,9 @@ sendTestEmailButton.addEventListener("click", sendTestEmail);
 
 addConsultantButton.addEventListener("click", () => {
   availability.consultants.push({
-    name: "New solicitor",
+    name: "New fee earner",
+    areas: ["Family law"],
+    fees: { 15: 140, 30: 280 },
     online: { weekdays: [1, 2, 3, 4, 5], times: ["09:00"] },
     inPerson: { weekdays: [2, 3, 4], times: ["10:00"] },
   });
@@ -126,9 +128,15 @@ function renderAvailability() {
     const card = consultantTemplate.content.cloneNode(true);
     const root = card.querySelector(".consultant-card");
     const nameInput = card.querySelector(".consultant-name");
+    const areasInput = card.querySelector(".consultant-areas");
+    const fee15Input = card.querySelector(".consultant-fee-15");
+    const fee30Input = card.querySelector(".consultant-fee-30");
 
     root.dataset.index = index;
     nameInput.value = consultant.name;
+    areasInput.value = (consultant.areas || []).join(", ");
+    fee15Input.value = consultant.fees?.[15] ?? consultant.fees?.["15"] ?? 140;
+    fee30Input.value = consultant.fees?.[30] ?? consultant.fees?.["30"] ?? 280;
 
     card.querySelector(".remove-consultant").addEventListener("click", () => {
       availability.consultants.splice(index, 1);
@@ -163,6 +171,15 @@ function collectAvailability() {
     consultants: [...consultantList.querySelectorAll(".consultant-card")].map((card) => {
       const consultant = {
         name: card.querySelector(".consultant-name").value.trim(),
+        areas: card
+          .querySelector(".consultant-areas")
+          .value.split(/[\n,]+/)
+          .map((area) => area.trim())
+          .filter(Boolean),
+        fees: {
+          15: Number(card.querySelector(".consultant-fee-15").value || 0),
+          30: Number(card.querySelector(".consultant-fee-30").value || 0),
+        },
         online: collectMode(card, "online"),
         inPerson: collectMode(card, "inPerson"),
       };
@@ -251,7 +268,10 @@ function renderBookings(bookings) {
 
     card.querySelector(".booking-details").innerHTML = [
       ["Consultant", booking.consultant],
+      ["Area of law", booking.areaOfLaw || booking.caseType],
       ["Case type", booking.caseType],
+      ["HiLex member", booking.hilexMember === "yes" ? "Yes" : "No"],
+      ["Proof of ID", booking.idType || "-"],
       ["Email", booking.email],
       ["Phone", booking.phone],
       ["Payment", booking.paymentStatus || "Not completed"],

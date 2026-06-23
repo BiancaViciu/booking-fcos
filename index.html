@@ -84,6 +84,22 @@
 
           <div class="booking-options">
             <fieldset>
+              <legend>Are you a HiLex member?</legend>
+              <div class="choice-grid two">
+                <label class="choice-card">
+                  <input name="hilexMember" type="radio" value="yes" />
+                  <span>Yes</span>
+                  <small>No consultation fee</small>
+                </label>
+                <label class="choice-card">
+                  <input name="hilexMember" type="radio" value="no" checked />
+                  <span>No</span>
+                  <small>Consultation fee applies</small>
+                </label>
+              </div>
+            </fieldset>
+
+            <fieldset>
               <legend>Appointment type</legend>
               <div class="choice-grid two">
                 <label class="choice-card">
@@ -115,12 +131,16 @@
           </div>
 
           <label>
-            Consultant
-            <select name="consultant" required>
+            Area of law
+            <select name="areaOfLaw" required>
               <option value="">Select one</option>
-              <option>Mihaela Pădure</option>
-              <option>Sandra Zăuleț</option>
-              <option>Eleonora Sorodoc</option>
+            </select>
+          </label>
+
+          <label>
+            Fee earner
+            <select name="consultant" required>
+              <option value="">Select an area of law first</option>
             </select>
           </label>
 
@@ -144,16 +164,7 @@
             </label>
             <label>
               Case type
-              <select name="caseType" required>
-                <option value="">Select one</option>
-                <option>Family law</option>
-                <option>Business law</option>
-                <option>Real estate</option>
-                <option>Employment law</option>
-                <option>Immigration</option>
-                <option>Criminal defense</option>
-                <option>Other</option>
-              </select>
+              <input name="caseType" placeholder="e.g. divorce, visa, employment dispute" required />
             </label>
           </div>
 
@@ -170,16 +181,26 @@
           <fieldset>
             <legend>Documents</legend>
             <p class="info-note">
-              Required before payment: upload ID and proof of address. Accepted formats: PDF, JPG or PNG, up to 10MB each.
+              Required before continuing: choose the proof of ID type and upload your ID. Proof of address is optional.
+              Accepted formats: PDF, JPG or PNG, up to 10MB each.
             </p>
             <div class="form-grid">
               <label>
-                ID document
+                Proof of ID type
+                <select name="idType" required>
+                  <option value="">Select one</option>
+                  <option>National ID card</option>
+                  <option>Driving licence</option>
+                  <option>Passport</option>
+                </select>
+              </label>
+              <label>
+                Proof of ID
                 <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
               </label>
               <label>
-                Proof of address
-                <input name="proofOfAddress" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+                Proof of address (optional)
+                <input name="proofOfAddress" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
               </label>
             </div>
           </fieldset>

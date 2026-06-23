@@ -74,10 +74,25 @@
       <article class="consultant-card">
         <div class="consultant-card__head">
           <label>
-            Solicitor name
+            Fee earner name
             <input class="consultant-name" required />
           </label>
           <button class="remove-consultant" type="button">Remove</button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            Areas of law
+            <textarea class="consultant-areas" rows="3" placeholder="Family law, Immigration"></textarea>
+          </label>
+          <label>
+            15 minute fee + VAT
+            <input class="consultant-fee-15" type="number" min="0" step="0.01" placeholder="140" />
+          </label>
+          <label>
+            30 minute fee + VAT
+            <input class="consultant-fee-30" type="number" min="0" step="0.01" placeholder="280" />
+          </label>
         </div>
 
         <div class="mode-grid">
