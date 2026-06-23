@@ -14,6 +14,8 @@ const defaultAvailability = {
   consultants: [
     {
       name: "Mihaela Pădure",
+      areas: ["Family law", "Immigration"],
+      fees: { 15: 140, 30: 280 },
       online: {
         weekdays: [1, 2, 3, 4, 5],
         times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
@@ -24,10 +26,6 @@ const defaultAvailability = {
       },
     },
   ],
-};
-const durationLabels = {
-  15: "15 minutes - £140 + VAT",
-  30: "30 minutes - £280 + VAT",
 };
 const today = startOfDay(new Date());
 
@@ -177,15 +175,17 @@ function createSlotButton(time) {
 
 function updateSummary() {
   const duration = getSelectedDuration();
+  const feeLabel = getSelectedHilexMember() === "yes" ? "no consultation fee" : getFeeLabel(duration);
+  const area = getSelectedArea();
 
   if (!selectedDate) {
-    appointmentSummary.textContent = `Choose a weekday for a ${durationLabels[duration]} consultation.`;
+    appointmentSummary.textContent = `Choose a weekday for a ${duration} minute consultation (${feeLabel}).`;
     return;
   }
 
   appointmentSummary.textContent = selectedTime
-    ? `${formatDate(selectedDate)} at ${selectedTime} · ${durationLabels[duration]} · ${getModeLabel()}`
-    : `${formatDate(selectedDate)} · ${durationLabels[duration]} · choose a time`;
+    ? `${formatDate(selectedDate)} at ${selectedTime} · ${area || "area not selected"} · ${duration} min · ${feeLabel} · ${getModeLabel()}`
+    : `${formatDate(selectedDate)} · ${area || "area not selected"} · ${duration} min · ${feeLabel} · choose a time`;
 }
 
 function changeMonth(direction) {
@@ -275,18 +275,24 @@ async function loadAvailability() {
     }
 
     availability = await response.json();
+    renderAreas();
     renderConsultants();
     renderCalendar();
     renderSlots();
     updateSummary();
   } catch {
     availability = defaultAvailability;
+    renderAreas();
     renderConsultants();
   }
 }
 
 function getSelectedMode() {
   return new FormData(bookingForm).get("appointmentMode") || "online";
+}
+
+function getSelectedHilexMember() {
+  return new FormData(bookingForm).get("hilexMember") || "no";
 }
 
 function getModeLabel() {
@@ -301,6 +307,10 @@ function getSelectedConsultant() {
   return new FormData(bookingForm).get("consultant") || getConsultants()[0] || "";
 }
 
+function getSelectedArea() {
+  return new FormData(bookingForm).get("areaOfLaw") || "";
+}
+
 function getModeAvailability() {
   const consultant = getConsultantAvailability();
   const modeAvailability = consultant?.[getSelectedMode()];
@@ -312,7 +322,7 @@ function getModeAvailability() {
     };
   }
 
-  return modeAvailability || defaultAvailability[getSelectedMode()];
+  return modeAvailability || { weekdays: [], times: [] };
 }
 
 function getModeTimes() {
@@ -324,7 +334,16 @@ function getModeWeekdays() {
 }
 
 function getConsultants() {
-  return (availability.consultants || []).map((consultant) => consultant.name);
+  const area = getSelectedArea();
+  const consultants = availability.consultants || [];
+
+  if (!area) {
+    return [];
+  }
+
+  return consultants
+    .filter((consultant) => (consultant.areas || []).includes(area))
+    .map((consultant) => consultant.name);
 }
 
 function getConsultantAvailability() {
@@ -334,12 +353,55 @@ function getConsultantAvailability() {
   );
 }
 
+function getAreas() {
+  return [
+    ...new Set(
+      (availability.consultants || [])
+        .flatMap((consultant) => consultant.areas || [])
+        .map((area) => String(area).trim())
+        .filter(Boolean),
+    ),
+  ].sort();
+}
+
+function getFeeLabel(duration) {
+  const consultant = getConsultantAvailability();
+  const fee = Number(consultant?.fees?.[duration]);
+
+  if (!Number.isFinite(fee) || fee <= 0) {
+    return "fee to be confirmed";
+  }
+
+  return `£${fee} + VAT`;
+}
+
+function renderAreas() {
+  const select = bookingForm.elements.areaOfLaw;
+  const selected = select.value;
+  const areas = getAreas();
+
+  select.innerHTML = '<option value="">Select one</option>';
+
+  areas.forEach((area) => {
+    const option = document.createElement("option");
+    option.value = area;
+    option.textContent = area;
+    select.appendChild(option);
+  });
+
+  if (areas.includes(selected)) {
+    select.value = selected;
+  }
+}
+
 function renderConsultants() {
   const select = bookingForm.elements.consultant;
   const selected = select.value;
   const consultants = getConsultants();
 
-  select.innerHTML = '<option value="">Select one</option>';
+  select.innerHTML = getSelectedArea()
+    ? '<option value="">Select one</option>'
+    : '<option value="">Select an area of law first</option>';
 
   consultants.forEach((name) => {
     const option = document.createElement("option");
@@ -353,20 +415,36 @@ function renderConsultants() {
   } else if (consultants.length) {
     select.value = consultants[0];
   }
+
+  updateDurationLabels();
+}
+
+function updateDurationLabels() {
+  bookingForm.querySelectorAll('input[name="duration"]').forEach((input) => {
+    const label = input.closest(".choice-card");
+    const small = label?.querySelector("small");
+
+    if (small) {
+      small.textContent =
+        getSelectedHilexMember() === "yes" ? "No consultation fee" : getFeeLabel(input.value);
+    }
+  });
 }
 
 function updatePaymentButtonState() {
   const formData = new FormData(bookingForm);
   const idDocument = bookingForm.elements.idDocument?.files?.[0];
-  const proofOfAddress = bookingForm.elements.proofOfAddress?.files?.[0];
   const hasAppointment = Boolean(selectedDate && selectedTime);
-  const hasDocuments = Boolean(idDocument && proofOfAddress);
+  const hasDocuments = Boolean(idDocument);
   const requiredFieldsComplete = [
+    "areaOfLaw",
     "fullName",
     "email",
     "phone",
     "caseType",
     "consultant",
+    "idType",
+    "hilexMember",
     "message",
   ].every((name) => Boolean(String(formData.get(name) || "").trim()));
   const consentChecked = Boolean(bookingForm.elements.consent?.checked);
@@ -378,12 +456,24 @@ function updatePaymentButtonState() {
       !requiredFieldsComplete ||
       !consentChecked,
   );
+
+  submitButton.textContent =
+    getSelectedHilexMember() === "yes" ? "Send appointment request" : "Continue to payment";
 }
 
-bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], select[name="consultant"]').forEach((control) => {
+bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], input[name="hilexMember"], select[name="consultant"], select[name="areaOfLaw"]').forEach((control) => {
   control.addEventListener("change", () => {
     selectedTime = "";
     formStatus.textContent = "";
+
+    if (control.name === "areaOfLaw") {
+      renderConsultants();
+    }
+
+    if (control.name === "consultant" || control.name === "hilexMember") {
+      updateDurationLabels();
+    }
+
     renderSlots();
     updateSummary();
     updatePaymentButtonState();
@@ -418,7 +508,8 @@ bookingForm.addEventListener("submit", async (event) => {
 
   isSubmitting = true;
   updatePaymentButtonState();
-  submitButton.textContent = "Opening Stripe...";
+  submitButton.textContent =
+    formData.get("hilexMember") === "yes" ? "Sending request..." : "Opening Stripe...";
 
   try {
     const response = await fetch("/api/bookings", {
@@ -444,7 +535,7 @@ bookingForm.addEventListener("submit", async (event) => {
       return;
     }
 
-    throw new Error("Stripe payment could not be opened. Please try again.");
+    showReceipt(payload.booking);
   } catch (error) {
     showNoticeReceipt(
       "Payment could not start",
@@ -452,7 +543,6 @@ bookingForm.addEventListener("submit", async (event) => {
     );
     isSubmitting = false;
     updatePaymentButtonState();
-    submitButton.textContent = "Continue to payment";
   }
 });
 
@@ -466,7 +556,7 @@ function showReceipt(booking, options = {}) {
   receiptTitle.textContent = options.title || "Booking request sent";
   receiptText.textContent =
     options.message ||
-    `${booking.fullName}, your ${booking.caseType.toLowerCase()} consultation request is set for ${formatDate(new Date(`${booking.date}T00:00:00`))} at ${booking.time}. A confirmation email has been sent to ${booking.email}.`;
+    `${booking.fullName}, your ${(booking.areaOfLaw || booking.caseType).toLowerCase()} consultation request is set for ${formatDate(new Date(`${booking.date}T00:00:00`))} at ${booking.time}. A confirmation email has been sent to ${booking.email}.`;
   newBookingButton.textContent = options.buttonText || "Book another appointment";
 
   bookingPanel.replaceChildren(receipt);
@@ -494,6 +584,8 @@ nextMonthButton.addEventListener("click", () => changeMonth(1));
 
 renderCalendar();
 renderSlots();
+renderAreas();
+renderConsultants();
 updateSummary();
 loadBookedSlots();
 loadAvailability();

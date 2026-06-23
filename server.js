@@ -239,9 +239,11 @@ app.get("/api/booking-status", async (request, response) => {
     fullName: refreshedBooking.fullName,
     email: refreshedBooking.email,
     caseType: refreshedBooking.caseType,
+    areaOfLaw: refreshedBooking.areaOfLaw || refreshedBooking.caseType,
     appointmentMode: refreshedBooking.appointmentMode,
     duration: refreshedBooking.duration,
     consultant: refreshedBooking.consultant,
+    hilexMember: refreshedBooking.hilexMember,
   });
 });
 
@@ -252,11 +254,6 @@ app.post(
     { name: "proofOfAddress", maxCount: 1 },
   ]),
   async (request, response) => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    cleanupUploadedFiles(request);
-    return response.status(500).json({ error: "Stripe is not configured yet." });
-  }
-
   const booking = normalizeBooking(request.body);
 
   if (!booking) {
@@ -264,10 +261,10 @@ app.post(
     return response.status(400).json({ error: "Please complete all required booking fields." });
   }
 
-  if (!request.files?.idDocument?.[0] || !request.files?.proofOfAddress?.[0]) {
+  if (!request.files?.idDocument?.[0]) {
     cleanupUploadedFiles(request);
     return response.status(400).json({
-      error: "Please upload both ID and proof of address before payment.",
+      error: "Please upload proof of ID before continuing.",
     });
   }
 
@@ -288,13 +285,40 @@ app.post(
   }
 
   const bookingId = crypto.randomUUID();
+  const isHilexMember = booking.hilexMember === "yes";
   const confirmedBooking = {
     id: bookingId,
-    status: "awaiting_payment",
+    status: isHilexMember ? "confirmed" : "awaiting_payment",
     createdAt: new Date().toISOString(),
-    documents: collectUploadedDocuments(request),
+    paymentStatus: isHilexMember ? "not_required_hilex_member" : "",
+    documents: collectUploadedDocuments(request, booking),
     ...booking,
   };
+
+  if (isHilexMember) {
+    bookings.push(confirmedBooking);
+    writeBookings(bookings);
+
+    try {
+      await sendBookingEmails(confirmedBooking);
+      confirmedBooking.emailStatus = "sent";
+    } catch (error) {
+      confirmedBooking.emailStatus = "failed";
+      confirmedBooking.emailError = error.message;
+      console.error("HiLex booking confirmed, but email failed:", error);
+    }
+
+    writeBookings(bookings);
+    response.status(201).json({
+      booking: getPublicBookingResponse(confirmedBooking),
+    });
+    return;
+  }
+
+  if (!process.env.STRIPE_SECRET_KEY) {
+    cleanupUploadedFiles(request);
+    return response.status(500).json({ error: "Stripe is not configured yet." });
+  }
 
   try {
     const session = await stripe.checkout.sessions.create({
@@ -309,6 +333,8 @@ app.post(
         duration: booking.duration,
         appointmentMode: booking.appointmentMode,
         consultant: booking.consultant,
+        areaOfLaw: booking.areaOfLaw,
+        hilexMember: booking.hilexMember,
       },
     });
 
@@ -318,16 +344,7 @@ app.post(
 
     response.status(201).json({
       paymentUrl: session.url,
-      booking: {
-        date: confirmedBooking.date,
-        time: confirmedBooking.time,
-        fullName: confirmedBooking.fullName,
-        email: confirmedBooking.email,
-        caseType: confirmedBooking.caseType,
-        appointmentMode: confirmedBooking.appointmentMode,
-        duration: confirmedBooking.duration,
-        consultant: confirmedBooking.consultant,
-      },
+      booking: getPublicBookingResponse(confirmedBooking),
     });
   } catch (error) {
     cleanupUploadedFiles(request);
@@ -347,22 +364,32 @@ function normalizeBooking(input) {
     fullName: String(input.fullName || "").trim(),
     email: String(input.email || "").trim(),
     phone: String(input.phone || "").trim(),
+    areaOfLaw: String(input.areaOfLaw || input.caseType || "").trim(),
     caseType: String(input.caseType || "").trim(),
     appointmentMode: String(input.appointmentMode || "").trim(),
     duration: String(input.duration || "").trim(),
     consultant: String(input.consultant || "").trim(),
+    hilexMember: String(input.hilexMember || "").trim(),
+    idType: String(input.idType || "").trim(),
     message: String(input.message || "").trim(),
   };
 
   const hasRequiredFields = Object.values(booking).every(Boolean);
+  const availability = readAvailability();
+  const consultant = getConsultantByName(availability, booking.consultant);
   const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(booking.email);
   const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(booking.date);
   const hasValidTime = /^\d{2}:\d{2}$/.test(booking.time);
   const hasValidMode = ["online", "inPerson"].includes(booking.appointmentMode);
   const hasValidDuration = ["15", "30"].includes(booking.duration);
-  const hasValidConsultant =
-    booking.consultant === "First available solicitor" ||
-    getConsultants(readAvailability()).includes(booking.consultant);
+  const hasValidConsultant = Boolean(consultant);
+  const hasValidArea = Boolean(consultant?.areas?.includes(booking.areaOfLaw));
+  const hasValidHilexAnswer = ["yes", "no"].includes(booking.hilexMember);
+  const hasValidIdType = ["National ID card", "Driving licence", "Passport"].includes(
+    booking.idType,
+  );
+  const hasValidFee =
+    booking.hilexMember === "yes" || getConsultationFeePence(consultant, booking.duration) > 0;
 
   if (
     !hasRequiredFields ||
@@ -371,7 +398,11 @@ function normalizeBooking(input) {
     !hasValidTime ||
     !hasValidMode ||
     !hasValidDuration ||
-    !hasValidConsultant
+    !hasValidConsultant ||
+    !hasValidArea ||
+    !hasValidHilexAnswer ||
+    !hasValidIdType ||
+    !hasValidFee
   ) {
     return null;
   }
@@ -404,6 +435,9 @@ function formatAdminBooking(booking) {
     email: booking.email,
     phone: booking.phone,
     caseType: booking.caseType,
+    areaOfLaw: booking.areaOfLaw || booking.caseType,
+    hilexMember: booking.hilexMember || "",
+    idType: booking.idType || "",
     appointmentMode: booking.appointmentMode,
     duration: booking.duration,
     consultant: booking.consultant,
@@ -419,12 +453,28 @@ function formatAdminBooking(booking) {
   };
 }
 
-function collectUploadedDocuments(request) {
+function getPublicBookingResponse(booking) {
+  return {
+    status: booking.status,
+    date: booking.date,
+    time: booking.time,
+    fullName: booking.fullName,
+    email: booking.email,
+    caseType: booking.caseType,
+    areaOfLaw: booking.areaOfLaw || booking.caseType,
+    appointmentMode: booking.appointmentMode,
+    duration: booking.duration,
+    consultant: booking.consultant,
+    hilexMember: booking.hilexMember,
+  };
+}
+
+function collectUploadedDocuments(request, booking = {}) {
   const files = request.files || {};
   const documents = [];
 
   if (files.idDocument?.[0]) {
-    documents.push(formatUploadedDocument("ID document", files.idDocument[0]));
+    documents.push(formatUploadedDocument(`Proof of ID - ${booking.idType || "ID"}`, files.idDocument[0]));
   }
 
   if (files.proofOfAddress?.[0]) {
@@ -483,6 +533,8 @@ function getDefaultAvailability() {
     consultants: [
       {
         name: "Mihaela Pădure",
+        areas: ["Family law", "Immigration"],
+        fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 2, 3, 4, 5],
           times: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00"],
@@ -494,6 +546,8 @@ function getDefaultAvailability() {
       },
       {
         name: "Sandra Zăuleț",
+        areas: ["Business law", "Employment law", "Real estate"],
+        fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 3, 5],
           times: ["09:30", "10:30", "12:00", "14:30"],
@@ -505,6 +559,8 @@ function getDefaultAvailability() {
       },
       {
         name: "Eleonora Sorodoc",
+        areas: ["Immigration", "Criminal defense", "Other"],
+        fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [2, 4],
           times: ["10:00", "12:00", "14:00", "16:00"],
@@ -523,6 +579,8 @@ function normalizeAvailability(input) {
     const consultants = input.consultants
       .map((consultant) => ({
         name: String(consultant.name || "").trim(),
+        areas: normalizeAreas(consultant.areas),
+        fees: normalizeFees(consultant.fees),
         online: normalizeModeAvailability(consultant.online),
         inPerson: normalizeModeAvailability(consultant.inPerson),
       }))
@@ -535,6 +593,8 @@ function normalizeAvailability(input) {
     return {
       consultants: getDefaultAvailability().consultants.map((consultant) => ({
         name: consultant.name,
+        areas: consultant.areas,
+        fees: consultant.fees,
         online: normalizeModeAvailability(input.online),
         inPerson: normalizeModeAvailability(input.inPerson),
       })),
@@ -542,6 +602,27 @@ function normalizeAvailability(input) {
   }
 
   return null;
+}
+
+function normalizeAreas(areas) {
+  const normalizedAreas = Array.isArray(areas)
+    ? areas.map((area) => String(area).trim()).filter(Boolean)
+    : ["Family law"];
+
+  return [...new Set(normalizedAreas)];
+}
+
+function normalizeFees(fees = {}) {
+  return {
+    15: normalizeFee(fees[15] ?? fees["15"], 140),
+    30: normalizeFee(fees[30] ?? fees["30"], 280),
+  };
+}
+
+function normalizeFee(value, fallback) {
+  const fee = Number(value);
+
+  return Number.isFinite(fee) && fee >= 0 ? fee : fallback;
 }
 
 function normalizeModeAvailability(modeAvailability = {}) {
@@ -565,6 +646,16 @@ function normalizeModeAvailability(modeAvailability = {}) {
 
 function getConsultants(availability) {
   return (availability.consultants || []).map((consultant) => consultant.name);
+}
+
+function getConsultantByName(availability, name) {
+  return (availability.consultants || []).find((consultant) => consultant.name === name);
+}
+
+function getConsultationFeePence(consultant, duration) {
+  const fee = Number(consultant?.fees?.[duration]);
+
+  return Number.isFinite(fee) && fee > 0 ? Math.round(fee * 100) : 0;
 }
 
 function isValidAdminRequest(request) {
@@ -598,7 +689,8 @@ function isActiveBooking(booking) {
 }
 
 function buildStripeLineItem(booking) {
-  const baseAmount = booking.duration === "30" ? 28000 : 14000;
+  const consultant = getConsultantByName(readAvailability(), booking.consultant);
+  const baseAmount = getConsultationFeePence(consultant, booking.duration);
   const amount = stripeVatTaxRateId ? baseAmount : Math.round(baseAmount * (1 + vatRate / 100));
   const lineItem = {
     quantity: 1,
@@ -607,7 +699,7 @@ function buildStripeLineItem(booking) {
       unit_amount: amount,
       product_data: {
         name: `${booking.duration} minute legal consultation`,
-        description: `${booking.appointmentMode === "inPerson" ? "In person" : "Online"} consultation with ${booking.consultant}`,
+        description: `${booking.appointmentMode === "inPerson" ? "In person" : "Online"} ${booking.areaOfLaw || booking.caseType} consultation with ${booking.consultant}`,
       },
     },
   };
@@ -706,6 +798,7 @@ async function sendBookingEmails(booking) {
   const appointmentLine = `${booking.date} at ${booking.time}`;
   const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
   const durationLine = `${booking.duration} minutes`;
+  const hilexLine = booking.hilexMember === "yes" ? "Yes - no consultation fee" : "No";
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || firmEmail,
@@ -718,7 +811,8 @@ async function sendBookingEmails(booking) {
       `Appointment type: ${appointmentType}`,
       `Consultation length: ${durationLine}`,
       `Consultant: ${booking.consultant}`,
-      `Case type: ${booking.caseType}`,
+      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+      `HiLex member: ${hilexLine}`,
       "",
       "A member of the firm will contact you if any additional details are needed.",
     ].join("\n"),
@@ -736,11 +830,13 @@ async function sendBookingEmails(booking) {
       `Name: ${booking.fullName}`,
       `Email: ${booking.email}`,
       `Phone: ${booking.phone}`,
-      `Case type: ${booking.caseType}`,
+      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+      `HiLex member: ${hilexLine}`,
       `Appointment type: ${appointmentType}`,
       `Consultation length: ${durationLine}`,
       `Consultant: ${booking.consultant}`,
       `Appointment: ${appointmentLine}`,
+      `Proof of ID type: ${booking.idType || "Not provided"}`,
       `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
       "",
       "Client message:",
@@ -800,6 +896,7 @@ async function sendBookingEmailsWithResend(booking) {
   const appointmentLine = `${booking.date} at ${booking.time}`;
   const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
   const durationLine = `${booking.duration} minutes`;
+  const hilexLine = booking.hilexMember === "yes" ? "Yes - no consultation fee" : "No";
 
   await sendResendEmail({
     to: booking.email,
@@ -811,7 +908,8 @@ async function sendBookingEmailsWithResend(booking) {
       `Appointment type: ${appointmentType}`,
       `Consultation length: ${durationLine}`,
       `Consultant: ${booking.consultant}`,
-      `Case type: ${booking.caseType}`,
+      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+      `HiLex member: ${hilexLine}`,
       "",
       "A member of the firm will contact you if any additional details are needed.",
     ].join("\n"),
@@ -827,11 +925,13 @@ async function sendBookingEmailsWithResend(booking) {
       `Name: ${booking.fullName}`,
       `Email: ${booking.email}`,
       `Phone: ${booking.phone}`,
-      `Case type: ${booking.caseType}`,
+      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+      `HiLex member: ${hilexLine}`,
       `Appointment type: ${appointmentType}`,
       `Consultation length: ${durationLine}`,
       `Consultant: ${booking.consultant}`,
       `Appointment: ${appointmentLine}`,
+      `Proof of ID type: ${booking.idType || "Not provided"}`,
       `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
       "",
       "Client message:",
