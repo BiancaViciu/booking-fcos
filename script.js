@@ -311,6 +311,10 @@ function getSelectedArea() {
   return new FormData(bookingForm).get("areaOfLaw") || "";
 }
 
+function normaliseChoice(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function getModeAvailability() {
   const consultant = getConsultantAvailability();
   const modeAvailability = consultant?.[getSelectedMode()];
@@ -342,7 +346,11 @@ function getConsultants() {
   }
 
   return consultants
-    .filter((consultant) => (consultant.areas || []).includes(area))
+    .filter((consultant) =>
+      (consultant.areas || []).some(
+        (consultantArea) => normaliseChoice(consultantArea) === normaliseChoice(area),
+      ),
+    )
     .map((consultant) => consultant.name);
 }
 
@@ -474,6 +482,11 @@ bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duratio
       updateDurationLabels();
     }
 
+    if (selectedDate && isUnavailableDate(selectedDate)) {
+      selectedDate = null;
+    }
+
+    renderCalendar();
     renderSlots();
     updateSummary();
     updatePaymentButtonState();
@@ -582,10 +595,10 @@ function showNoticeReceipt(title, message) {
 prevMonthButton.addEventListener("click", () => changeMonth(-1));
 nextMonthButton.addEventListener("click", () => changeMonth(1));
 
-renderCalendar();
-renderSlots();
 renderAreas();
 renderConsultants();
+renderCalendar();
+renderSlots();
 updateSummary();
 loadBookedSlots();
 loadAvailability();
