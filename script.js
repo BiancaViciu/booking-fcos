@@ -8,7 +8,9 @@ const bookingForm = document.querySelector("#bookingForm");
 const formStatus = document.querySelector("#formStatus");
 const submitButton = document.querySelector("#submitButton");
 const bookingPanel = document.querySelector(".booking-panel");
+const calendarCard = document.querySelector(".calendar-card");
 const receiptTemplate = document.querySelector("#bookingTemplate");
+const mobileLayout = window.matchMedia("(max-width: 760px)");
 
 const defaultAvailability = {
   consultants: [
@@ -469,6 +471,21 @@ function updatePaymentButtonState() {
     getSelectedHilexMember() === "yes" ? "Send appointment request" : "Continue to payment";
 }
 
+function placeCalendarForViewport() {
+  const timeSection = timeSlots.closest("fieldset");
+
+  if (!calendarCard || !timeSection) {
+    return;
+  }
+
+  if (mobileLayout.matches) {
+    bookingForm.insertBefore(calendarCard, timeSection);
+    return;
+  }
+
+  bookingPanel.insertBefore(calendarCard, bookingForm);
+}
+
 bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], input[name="hilexMember"], select[name="consultant"], select[name="areaOfLaw"]').forEach((control) => {
   control.addEventListener("change", () => {
     selectedTime = "";
@@ -493,6 +510,7 @@ bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duratio
   });
 });
 
+mobileLayout.addEventListener("change", placeCalendarForViewport);
 bookingForm.addEventListener("input", updatePaymentButtonState);
 bookingForm.addEventListener("change", updatePaymentButtonState);
 
@@ -595,6 +613,7 @@ function showNoticeReceipt(title, message) {
 prevMonthButton.addEventListener("click", () => changeMonth(-1));
 nextMonthButton.addEventListener("click", () => changeMonth(1));
 
+placeCalendarForViewport();
 renderAreas();
 renderConsultants();
 renderCalendar();

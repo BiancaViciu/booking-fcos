@@ -1056,6 +1056,12 @@ textarea:focus {
     overflow: visible;
   }
 
+  .form-card > .calendar-card {
+    margin: 4px 0;
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.96);
+  }
+
   .form-card {
     max-height: none;
     overflow: visible;
