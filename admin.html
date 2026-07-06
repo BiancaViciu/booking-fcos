@@ -41,9 +41,23 @@
         <form class="admin-editor" id="adminEditor">
           <div class="admin-toolbar">
             <button class="submit-button" id="addConsultant" type="button">Add solicitor</button>
+            <button class="submit-button secondary-button" id="refreshServiceOptions" type="button">Update area options</button>
             <button class="submit-button" type="submit">Save availability</button>
           </div>
           <div class="admin-status" id="adminStatus" role="status" aria-live="polite"></div>
+          <section class="service-editor" aria-label="Area of law list">
+            <label>
+              Official area of law list
+              <textarea
+                id="serviceList"
+                rows="5"
+                placeholder="Family Law&#10;Immigration&#10;Employment Law"
+              ></textarea>
+            </label>
+            <p class="admin-empty">
+              Add one service per line. Fee earners can then be assigned to these services below.
+            </p>
+          </section>
           <div class="consultant-list" id="consultantList"></div>
         </form>
 
@@ -81,10 +95,10 @@
         </div>
 
         <div class="form-grid">
-          <label>
-            Areas of law
-            <textarea class="consultant-areas" rows="3" placeholder="Family law, Immigration"></textarea>
-          </label>
+          <fieldset class="consultant-area-field">
+            <legend>Areas of law covered</legend>
+            <div class="consultant-area-options"></div>
+          </fieldset>
           <label>
             15 minute fee + VAT
             <input class="consultant-fee-15" type="number" min="0" step="0.01" placeholder="140" />
