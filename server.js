@@ -23,6 +23,18 @@ const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 const currency = process.env.STRIPE_CURRENCY || "gbp";
 const vatRate = Number(process.env.VAT_RATE || 20);
 const stripeVatTaxRateId = process.env.STRIPE_VAT_TAX_RATE_ID || "";
+const defaultServices = [
+  "Business Law",
+  "Civil Law",
+  "Corporate/Commercial Law",
+  "Criminal Law",
+  "Dispute Resolution",
+  "Employment Law",
+  "Family Law",
+  "Immigration",
+  "Real Estate",
+  "Other",
+];
 
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -383,7 +395,9 @@ function normalizeBooking(input) {
   const hasValidMode = ["online", "inPerson"].includes(booking.appointmentMode);
   const hasValidDuration = ["15", "30"].includes(booking.duration);
   const hasValidConsultant = Boolean(consultant);
-  const hasValidArea = Boolean(consultant?.areas?.includes(booking.areaOfLaw));
+  const hasValidArea = Boolean(
+    consultant?.areas?.some((area) => normalizeComparable(area) === normalizeComparable(booking.areaOfLaw)),
+  );
   const hasValidHilexAnswer = ["yes", "no"].includes(booking.hilexMember);
   const hasValidIdType = ["National ID card", "Driving licence", "Passport"].includes(
     booking.idType,
@@ -530,10 +544,11 @@ function writeAvailability(availability) {
 
 function getDefaultAvailability() {
   return {
+    services: defaultServices,
     consultants: [
       {
         name: "Mihaela Pădure",
-        areas: ["Family law", "Immigration"],
+        areas: ["Family Law", "Immigration"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 2, 3, 4, 5],
@@ -546,7 +561,7 @@ function getDefaultAvailability() {
       },
       {
         name: "Sandra Zăuleț",
-        areas: ["Business law", "Employment law", "Real estate"],
+        areas: ["Business Law", "Employment Law", "Real Estate"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 3, 5],
@@ -559,7 +574,7 @@ function getDefaultAvailability() {
       },
       {
         name: "Eleonora Sorodoc",
-        areas: ["Immigration", "Criminal defense", "Other"],
+        areas: ["Immigration", "Criminal Law", "Other"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [2, 4],
@@ -576,21 +591,26 @@ function getDefaultAvailability() {
 
 function normalizeAvailability(input) {
   if (input?.consultants && Array.isArray(input.consultants)) {
+    const services = normalizeServices(
+      input.services,
+      input.consultants.flatMap((consultant) => consultant.areas || []),
+    );
     const consultants = input.consultants
       .map((consultant) => ({
         name: String(consultant.name || "").trim(),
-        areas: normalizeAreas(consultant.areas),
+        areas: normalizeAreas(consultant.areas, services),
         fees: normalizeFees(consultant.fees),
         online: normalizeModeAvailability(consultant.online),
         inPerson: normalizeModeAvailability(consultant.inPerson),
       }))
       .filter((consultant) => consultant.name);
 
-    return consultants.length ? { consultants } : null;
+    return consultants.length ? { services, consultants } : null;
   }
 
   if (input?.online || input?.inPerson) {
     return {
+      services: getDefaultAvailability().services,
       consultants: getDefaultAvailability().consultants.map((consultant) => ({
         name: consultant.name,
         areas: consultant.areas,
@@ -604,12 +624,48 @@ function normalizeAvailability(input) {
   return null;
 }
 
-function normalizeAreas(areas) {
+function normalizeServices(services, fallbackAreas = []) {
+  const values = Array.isArray(services) && services.length ? services : fallbackAreas;
+  const normalizedServices = values.map((service) => String(service).trim()).filter(Boolean);
+  const fallbackServices = defaultServices;
+
+  return uniqueLabels(normalizedServices.length ? normalizedServices : fallbackServices);
+}
+
+function normalizeAreas(areas, services = defaultServices) {
   const normalizedAreas = Array.isArray(areas)
     ? areas.map((area) => String(area).trim()).filter(Boolean)
-    : ["Family law"];
+    : [services[0] || "Family Law"];
 
-  return [...new Set(normalizedAreas)];
+  const serviceMap = new Map(services.map((service) => [normalizeComparable(service), service]));
+  const matchedAreas = normalizedAreas
+    .map((area) => serviceMap.get(normalizeComparable(area)) || area)
+    .filter((area) => serviceMap.has(normalizeComparable(area)));
+
+  return uniqueLabels(matchedAreas.length ? matchedAreas : [services[0] || "Family Law"]);
+}
+
+function uniqueLabels(values) {
+  const seen = new Set();
+  const result = [];
+
+  values.forEach((value) => {
+    const label = String(value).trim();
+    const key = normalizeComparable(label);
+
+    if (!label || seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    result.push(label);
+  });
+
+  return result;
+}
+
+function normalizeComparable(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function normalizeFees(fees = {}) {
