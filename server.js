@@ -273,6 +273,13 @@ app.post(
     return response.status(400).json({ error: "Please complete all required booking fields." });
   }
 
+  if (!request.files?.idDocument?.[0]) {
+    cleanupUploadedFiles(request);
+    return response.status(400).json({
+      error: "Please upload proof of ID before continuing.",
+    });
+  }
+
   const bookings = readBookings();
   const slotTaken = bookings.some(
     (item) =>
@@ -380,37 +387,20 @@ function normalizeBooking(input) {
     message: String(input.message || "").trim(),
   };
 
-  if (!booking.consultant) {
-    booking.consultant = getAvailableConsultantForBooking(availability, booking)?.name || "";
-  }
-
+  const hasRequiredFields = Object.values(booking).every(Boolean);
+  const availability = readAvailability();
   const consultant = getConsultantByName(availability, booking.consultant);
-  const hasRequiredFields = [
-    booking.date,
-    booking.time,
-    booking.fullName,
-    booking.email,
-    booking.phone,
-    booking.areaOfLaw,
-    booking.caseType,
-    booking.appointmentMode,
-    booking.duration,
-    booking.consultant,
-    booking.hilexMember,
-    booking.message,
-  ].every(Boolean);
   const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(booking.email);
   const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(booking.date);
   const hasValidTime = /^\d{2}:\d{2}$/.test(booking.time);
   const hasValidMode = ["online", "inPerson"].includes(booking.appointmentMode);
   const hasValidDuration = ["15", "30"].includes(booking.duration);
   const hasValidConsultant = Boolean(consultant);
-  const hasValidArea = Boolean(
-    consultant?.areas?.some((area) => normalizeComparable(area) === normalizeComparable(booking.areaOfLaw)),
-  );
+  const hasValidArea = Boolean(consultant?.areas?.includes(booking.areaOfLaw));
   const hasValidHilexAnswer = ["yes", "no"].includes(booking.hilexMember);
-  const hasValidIdType =
-    !booking.idType || ["National ID card", "Driving licence", "Passport"].includes(booking.idType);
+  const hasValidIdType = ["National ID card", "Driving licence", "Passport"].includes(
+    booking.idType,
+  );
   const hasValidFee =
     booking.hilexMember === "yes" || getConsultationFeePence(consultant, booking.duration) > 0;
 
@@ -557,7 +547,7 @@ function getDefaultAvailability() {
     consultants: [
       {
         name: "Mihaela Pădure",
-        areas: ["Family Law", "Immigration"],
+        areas: ["Family law", "Immigration"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 2, 3, 4, 5],
@@ -570,7 +560,7 @@ function getDefaultAvailability() {
       },
       {
         name: "Sandra Zăuleț",
-        areas: ["Business Law", "Employment Law", "Real Estate"],
+        areas: ["Business law", "Employment law", "Real estate"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [1, 3, 5],
@@ -583,7 +573,7 @@ function getDefaultAvailability() {
       },
       {
         name: "Eleonora Sorodoc",
-        areas: ["Immigration", "Criminal Law", "Other"],
+        areas: ["Immigration", "Criminal defense", "Other"],
         fees: { 15: 140, 30: 280 },
         online: {
           weekdays: [2, 4],
@@ -607,7 +597,7 @@ function normalizeAvailability(input) {
     const consultants = input.consultants
       .map((consultant) => ({
         name: String(consultant.name || "").trim(),
-        areas: normalizeAreas(consultant.areas, services),
+        areas: normalizeAreas(consultant.areas),
         fees: normalizeFees(consultant.fees),
         online: normalizeModeAvailability(consultant.online),
         inPerson: normalizeModeAvailability(consultant.inPerson),
@@ -633,48 +623,12 @@ function normalizeAvailability(input) {
   return null;
 }
 
-function normalizeServices(services, fallbackAreas = []) {
-  const values = Array.isArray(services) && services.length ? services : fallbackAreas;
-  const normalizedServices = values.map((service) => String(service).trim()).filter(Boolean);
-  const fallbackServices = defaultServices;
-
-  return uniqueLabels(normalizedServices.length ? normalizedServices : fallbackServices);
-}
-
-function normalizeAreas(areas, services = defaultServices) {
+function normalizeAreas(areas) {
   const normalizedAreas = Array.isArray(areas)
     ? areas.map((area) => String(area).trim()).filter(Boolean)
-    : [services[0] || "Family Law"];
+    : ["Family law"];
 
-  const serviceMap = new Map(services.map((service) => [normalizeComparable(service), service]));
-  const matchedAreas = normalizedAreas
-    .map((area) => serviceMap.get(normalizeComparable(area)) || area)
-    .filter((area) => serviceMap.has(normalizeComparable(area)));
-
-  return uniqueLabels(matchedAreas.length ? matchedAreas : [services[0] || "Family Law"]);
-}
-
-function uniqueLabels(values) {
-  const seen = new Set();
-  const result = [];
-
-  values.forEach((value) => {
-    const label = String(value).trim();
-    const key = normalizeComparable(label);
-
-    if (!label || seen.has(key)) {
-      return;
-    }
-
-    seen.add(key);
-    result.push(label);
-  });
-
-  return result;
-}
-
-function normalizeComparable(value) {
-  return String(value || "").trim().toLowerCase();
+  return [...new Set(normalizedAreas)];
 }
 
 function normalizeFees(fees = {}) {
@@ -715,30 +669,6 @@ function getConsultants(availability) {
 
 function getConsultantByName(availability, name) {
   return (availability.consultants || []).find((consultant) => consultant.name === name);
-}
-
-function getAvailableConsultantForBooking(availability, booking) {
-  const weekday = new Date(`${booking.date}T00:00:00`).getDay();
-  const bookings = readBookings();
-
-  return (availability.consultants || []).find((consultant) => {
-    const coversArea = (consultant.areas || []).some(
-      (area) => normalizeComparable(area) === normalizeComparable(booking.areaOfLaw),
-    );
-    const modeAvailability = consultant[booking.appointmentMode] || {};
-    const worksThatDay = (modeAvailability.weekdays || []).includes(weekday);
-    const hasThatTime = (modeAvailability.times || []).includes(booking.time);
-    const alreadyBooked = bookings.some(
-      (item) =>
-        isActiveBooking(item) &&
-        item.date === booking.date &&
-        item.time === booking.time &&
-        item.appointmentMode === booking.appointmentMode &&
-        item.consultant === consultant.name,
-    );
-
-    return coversArea && worksThatDay && hasThatTime && !alreadyBooked;
-  });
 }
 
 function getConsultationFeePence(consultant, duration) {

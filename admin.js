@@ -72,7 +72,7 @@ refreshServiceOptionsButton.addEventListener("click", () => {
 addConsultantButton.addEventListener("click", () => {
   availability.consultants.push({
     name: "New fee earner",
-    areas: [getServices()[0] || "Family Law"],
+    areas: ["Family law"],
     fees: { 15: 140, 30: 280 },
     online: { weekdays: [1, 2, 3, 4, 5], times: ["09:00"] },
     inPerson: { weekdays: [2, 3, 4], times: ["10:00"] },
@@ -136,16 +136,15 @@ function renderAvailability() {
     const card = consultantTemplate.content.cloneNode(true);
     const root = card.querySelector(".consultant-card");
     const nameInput = card.querySelector(".consultant-name");
-    const areasContainer = card.querySelector(".consultant-area-options");
+    const areasInput = card.querySelector(".consultant-areas");
     const fee15Input = card.querySelector(".consultant-fee-15");
     const fee30Input = card.querySelector(".consultant-fee-30");
 
     root.dataset.index = index;
     nameInput.value = consultant.name;
+    areasInput.value = (consultant.areas || []).join(", ");
     fee15Input.value = consultant.fees?.[15] ?? consultant.fees?.["15"] ?? 140;
     fee30Input.value = consultant.fees?.[30] ?? consultant.fees?.["30"] ?? 280;
-
-    renderAreaOptions(areasContainer, consultant.areas || []);
 
     card.querySelector(".remove-consultant").addEventListener("click", () => {
       availability.consultants.splice(index, 1);
@@ -186,7 +185,11 @@ function collectAvailability() {
         .filter(Boolean);
       const consultant = {
         name: card.querySelector(".consultant-name").value.trim(),
-        areas: selectedAreas.length ? selectedAreas : services.slice(0, 1),
+        areas: card
+          .querySelector(".consultant-areas")
+          .value.split(/[\n,]+/)
+          .map((area) => area.trim())
+          .filter(Boolean),
         fees: {
           15: Number(card.querySelector(".consultant-fee-15").value || 0),
           30: Number(card.querySelector(".consultant-fee-30").value || 0),
