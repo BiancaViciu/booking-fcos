@@ -45,7 +45,6 @@ const translations = {
     inPerson: "In person",
     consultationLength: "Consultation length",
     areaOfLaw: "Area of law",
-    feeEarner: "Fee earner",
     solicitorNote: "Your consultation will be arranged with one of our available solicitors.",
     selectOne: "Select one",
     selectAreaFirst: "Select an area of law first",
@@ -130,7 +129,6 @@ const translations = {
     inPerson: "În persoană",
     consultationLength: "Durata consultanței",
     areaOfLaw: "Domeniul juridic",
-    feeEarner: "Avocat / consultant",
     solicitorNote: "Consultanța va fi alocată unuia dintre avocații noștri disponibili.",
     selectOne: "Selectează",
     selectAreaFirst: "Selectează mai întâi domeniul juridic",
@@ -664,11 +662,10 @@ function renderAreas() {
 function renderConsultants() {
   const select = bookingForm.elements.consultant;
 
-  if (!select) {
-    return;
+  if (select) {
+    select.value = getAssignableConsultant() || getConsultants()[0] || "";
   }
 
-  select.value = getAssignableConsultant() || getConsultants()[0] || "";
   updateDurationLabels();
 }
 
@@ -748,7 +745,7 @@ function placeCalendarForViewport() {
   bookingPanel.insertBefore(calendarCard, bookingForm);
 }
 
-bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], input[name="hilexMember"], select[name="consultant"], select[name="areaOfLaw"]').forEach((control) => {
+bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duration"], input[name="hilexMember"], select[name="areaOfLaw"]').forEach((control) => {
   control.addEventListener("change", () => {
     selectedTime = "";
     formStatus.textContent = "";
@@ -757,7 +754,7 @@ bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duratio
       renderConsultants();
     }
 
-    if (control.name === "consultant" || control.name === "hilexMember") {
+    if (control.name === "hilexMember") {
       updateDurationLabels();
     }
 
