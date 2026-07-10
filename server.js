@@ -23,6 +23,18 @@ const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 const currency = process.env.STRIPE_CURRENCY || "gbp";
 const vatRate = Number(process.env.VAT_RATE || 20);
 const stripeVatTaxRateId = process.env.STRIPE_VAT_TAX_RATE_ID || "";
+const defaultServices = [
+  "Business Law",
+  "Civil Law",
+  "Corporate/Commercial Law",
+  "Criminal Law",
+  "Dispute Resolution",
+  "Employment Law",
+  "Family Law",
+  "Immigration",
+  "Real Estate",
+  "Other",
+];
 
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -358,6 +370,7 @@ app.listen(port, () => {
 });
 
 function normalizeBooking(input) {
+  const availability = readAvailability();
   const booking = {
     date: String(input.date || "").trim(),
     time: String(input.time || "").trim(),
@@ -530,6 +543,7 @@ function writeAvailability(availability) {
 
 function getDefaultAvailability() {
   return {
+    services: defaultServices,
     consultants: [
       {
         name: "Mihaela Pădure",
@@ -576,6 +590,10 @@ function getDefaultAvailability() {
 
 function normalizeAvailability(input) {
   if (input?.consultants && Array.isArray(input.consultants)) {
+    const services = normalizeServices(
+      input.services,
+      input.consultants.flatMap((consultant) => consultant.areas || []),
+    );
     const consultants = input.consultants
       .map((consultant) => ({
         name: String(consultant.name || "").trim(),
@@ -586,11 +604,12 @@ function normalizeAvailability(input) {
       }))
       .filter((consultant) => consultant.name);
 
-    return consultants.length ? { consultants } : null;
+    return consultants.length ? { services, consultants } : null;
   }
 
   if (input?.online || input?.inPerson) {
     return {
+      services: getDefaultAvailability().services,
       consultants: getDefaultAvailability().consultants.map((consultant) => ({
         name: consultant.name,
         areas: consultant.areas,

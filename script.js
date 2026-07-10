@@ -199,6 +199,7 @@ function t(key) {
 }
 
 const defaultAvailability = {
+  services: ["Family Law", "Immigration", "Employment Law", "Business Law", "Real Estate", "Other"],
   consultants: [
     {
       name: "Mihaela Pădure",
@@ -247,6 +248,10 @@ function formatDate(date) {
 function isBooked(dateKey, time) {
   const mode = getSelectedMode();
   const consultant = getSelectedConsultant();
+
+  if (!consultant) {
+    return false;
+  }
 
   return bookedSlots.some(
     (booking) =>
@@ -308,6 +313,7 @@ function renderCalendar() {
       selectedDate = date;
       selectedTime = "";
       formStatus.textContent = "";
+      renderConsultants();
       renderCalendar();
       renderSlots();
       updateSummary();
@@ -335,7 +341,7 @@ function renderSlots() {
 
   availableTimes.forEach((time) => {
     const button = createSlotButton(time);
-    button.disabled = isBooked(dateKey, time);
+    button.disabled = !getAssignableConsultant(dateKey, time);
 
     if (time === selectedTime) {
       button.classList.add("is-selected");
@@ -344,6 +350,7 @@ function renderSlots() {
     button.addEventListener("click", () => {
       selectedTime = time;
       formStatus.textContent = "";
+      renderConsultants();
       renderSlots();
       updateSummary();
       updatePaymentButtonState();
@@ -398,6 +405,7 @@ async function loadBookedSlots() {
 
     bookedSlots = await response.json();
     renderCalendar();
+    renderConsultants();
     renderSlots();
   } catch {
     formStatus.textContent =
@@ -469,6 +477,7 @@ async function loadAvailability() {
     renderAreas();
     renderConsultants();
     renderCalendar();
+    renderConsultants();
     renderSlots();
     updateSummary();
   } catch {
@@ -495,7 +504,15 @@ function getSelectedDuration() {
 }
 
 function getSelectedConsultant() {
-  return new FormData(bookingForm).get("consultant") || getConsultants()[0] || "";
+  return new FormData(bookingForm).get("consultant") || getAssignableConsultant() || getConsultants()[0] || "";
+}
+
+function getSelectedArea() {
+  return new FormData(bookingForm).get("areaOfLaw") || "";
+}
+
+function normaliseChoice(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function getSelectedArea() {
@@ -521,11 +538,21 @@ function getModeAvailability() {
 }
 
 function getModeTimes() {
-  return getModeAvailability().times || [];
+  const selectedWeekday = selectedDate?.getDay();
+  const times = getEligibleConsultants()
+    .filter((consultant) =>
+      selectedWeekday === undefined ? true : isConsultantAvailableOnDay(consultant, selectedWeekday),
+    )
+    .flatMap((consultant) => consultant[getSelectedMode()]?.times || []);
+
+  return [...new Set(times)].sort();
 }
 
 function getModeWeekdays() {
-  return getModeAvailability().weekdays || [1, 2, 3, 4, 5];
+  const weekdays = getEligibleConsultants()
+    .flatMap((consultant) => consultant[getSelectedMode()]?.weekdays || []);
+
+  return [...new Set(weekdays)];
 }
 
 function getConsultants() {
@@ -596,23 +623,43 @@ function renderAreas() {
 function renderConsultants() {
   const select = bookingForm.elements.consultant;
   const selected = select.value;
-  const consultants = getConsultants();
+  const areas = getAreas();
 
   select.innerHTML = getSelectedArea()
     ? `<option value="">${t("selectOne")}</option>`
     : `<option value="">${t("selectAreaFirst")}</option>`;
 
-  consultants.forEach((name) => {
+  areas.forEach((area) => {
     const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name;
+    option.value = area;
+    option.textContent = area;
     select.appendChild(option);
   });
 
-  if (consultants.includes(selected)) {
+  if (areas.includes(selected)) {
     select.value = selected;
-  } else if (consultants.length) {
-    select.value = consultants[0];
+  }
+
+  updateDurationLabels();
+}
+
+function updateDurationLabels() {
+  bookingForm.querySelectorAll('input[name="duration"]').forEach((input) => {
+    const label = input.closest(".choice-card");
+    const small = label?.querySelector("small");
+
+    if (small) {
+      small.textContent =
+        getSelectedHilexMember() === "yes" ? t("noConsultationFee") : getFeeLabel(input.value);
+    }
+  });
+}
+
+function renderConsultants() {
+  const select = bookingForm.elements.consultant;
+
+  if (select) {
+    select.value = getAssignableConsultant() || getConsultants()[0] || "";
   }
 
   updateDurationLabels();
@@ -651,7 +698,6 @@ function updatePaymentButtonState() {
   submitButton.disabled = Boolean(
     isSubmitting ||
       !hasAppointment ||
-      !hasDocuments ||
       !requiredFieldsComplete ||
       !consentChecked,
   );
@@ -746,10 +792,12 @@ bookingForm.addEventListener("submit", async (event) => {
   }
 
   const dateKey = toDateKey(selectedDate);
+  const assignedConsultant = getAssignableConsultant(dateKey, selectedTime);
 
   if (isBooked(dateKey, selectedTime)) {
     formStatus.textContent = t("timeBooked");
     selectedTime = "";
+    renderConsultants();
     renderSlots();
     updateSummary();
     return;
@@ -758,6 +806,7 @@ bookingForm.addEventListener("submit", async (event) => {
   const formData = new FormData(bookingForm);
   formData.set("date", dateKey);
   formData.set("time", selectedTime);
+  formData.set("consultant", assignedConsultant);
 
   isSubmitting = true;
   updatePaymentButtonState();

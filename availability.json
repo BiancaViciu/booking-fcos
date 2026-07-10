@@ -1,4 +1,16 @@
 {
+  "services": [
+    "Business Law",
+    "Civil Law",
+    "Corporate/Commercial Law",
+    "Criminal Law",
+    "Dispute Resolution",
+    "Employment Law",
+    "Family Law",
+    "Immigration",
+    "Real Estate",
+    "Other"
+  ],
   "consultants": [
     {
       "name": "Mihaela Pădure",

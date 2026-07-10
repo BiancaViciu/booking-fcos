@@ -771,6 +771,26 @@ textarea:focus {
   font-weight: 900;
 }
 
+.secondary-button {
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  color: var(--navy);
+}
+
+.secondary-button:hover {
+  border-color: var(--magenta);
+  background: #fff;
+  color: var(--magenta);
+}
+
+.service-editor {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  padding: 18px;
+  background: rgba(247, 247, 251, 0.72);
+}
+
 .consultant-list {
   display: grid;
   gap: 18px;
@@ -788,6 +808,48 @@ textarea:focus {
   grid-template-columns: 1fr auto;
   align-items: end;
   gap: 16px;
+}
+
+.consultant-area-field {
+  display: grid;
+  gap: 10px;
+  grid-column: span 2;
+}
+
+.consultant-area-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.area-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  padding: 9px 10px;
+  background: #fff;
+  color: var(--navy);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-transform: none;
+}
+
+.area-toggle input {
+  width: 14px;
+  min-width: 14px;
+  min-height: 14px;
+  margin-top: 1px;
+  accent-color: var(--magenta);
+}
+
+.area-toggle:has(input:checked) {
+  border-color: var(--magenta);
+  color: var(--magenta);
+  box-shadow: inset 0 0 0 1px var(--magenta);
 }
 
 .remove-consultant {
