@@ -273,13 +273,6 @@ app.post(
     return response.status(400).json({ error: "Please complete all required booking fields." });
   }
 
-  if (!request.files?.idDocument?.[0]) {
-    cleanupUploadedFiles(request);
-    return response.status(400).json({
-      error: "Please upload proof of ID before continuing.",
-    });
-  }
-
   const bookings = readBookings();
   const slotTaken = bookings.some(
     (item) =>
@@ -370,6 +363,7 @@ app.listen(port, () => {
 });
 
 function normalizeBooking(input) {
+  const availability = readAvailability();
   const booking = {
     date: String(input.date || "").trim(),
     time: String(input.time || "").trim(),
@@ -386,9 +380,25 @@ function normalizeBooking(input) {
     message: String(input.message || "").trim(),
   };
 
-  const hasRequiredFields = Object.values(booking).every(Boolean);
-  const availability = readAvailability();
+  if (!booking.consultant) {
+    booking.consultant = getAvailableConsultantForBooking(availability, booking)?.name || "";
+  }
+
   const consultant = getConsultantByName(availability, booking.consultant);
+  const hasRequiredFields = [
+    booking.date,
+    booking.time,
+    booking.fullName,
+    booking.email,
+    booking.phone,
+    booking.areaOfLaw,
+    booking.caseType,
+    booking.appointmentMode,
+    booking.duration,
+    booking.consultant,
+    booking.hilexMember,
+    booking.message,
+  ].every(Boolean);
   const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(booking.email);
   const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(booking.date);
   const hasValidTime = /^\d{2}:\d{2}$/.test(booking.time);
@@ -399,9 +409,8 @@ function normalizeBooking(input) {
     consultant?.areas?.some((area) => normalizeComparable(area) === normalizeComparable(booking.areaOfLaw)),
   );
   const hasValidHilexAnswer = ["yes", "no"].includes(booking.hilexMember);
-  const hasValidIdType = ["National ID card", "Driving licence", "Passport"].includes(
-    booking.idType,
-  );
+  const hasValidIdType =
+    !booking.idType || ["National ID card", "Driving licence", "Passport"].includes(booking.idType);
   const hasValidFee =
     booking.hilexMember === "yes" || getConsultationFeePence(consultant, booking.duration) > 0;
 
@@ -706,6 +715,30 @@ function getConsultants(availability) {
 
 function getConsultantByName(availability, name) {
   return (availability.consultants || []).find((consultant) => consultant.name === name);
+}
+
+function getAvailableConsultantForBooking(availability, booking) {
+  const weekday = new Date(`${booking.date}T00:00:00`).getDay();
+  const bookings = readBookings();
+
+  return (availability.consultants || []).find((consultant) => {
+    const coversArea = (consultant.areas || []).some(
+      (area) => normalizeComparable(area) === normalizeComparable(booking.areaOfLaw),
+    );
+    const modeAvailability = consultant[booking.appointmentMode] || {};
+    const worksThatDay = (modeAvailability.weekdays || []).includes(weekday);
+    const hasThatTime = (modeAvailability.times || []).includes(booking.time);
+    const alreadyBooked = bookings.some(
+      (item) =>
+        isActiveBooking(item) &&
+        item.date === booking.date &&
+        item.time === booking.time &&
+        item.appointmentMode === booking.appointmentMode &&
+        item.consultant === consultant.name,
+    );
+
+    return coversArea && worksThatDay && hasThatTime && !alreadyBooked;
+  });
 }
 
 function getConsultationFeePence(consultant, duration) {

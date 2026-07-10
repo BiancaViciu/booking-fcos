@@ -46,6 +46,7 @@ const translations = {
     consultationLength: "Consultation length",
     areaOfLaw: "Area of law",
     feeEarner: "Fee earner",
+    solicitorNote: "Your consultation will be arranged with one of our available solicitors.",
     selectOne: "Select one",
     selectAreaFirst: "Select an area of law first",
     availableTimes: "Available times",
@@ -58,12 +59,12 @@ const translations = {
     messagePlaceholder: "Share a short summary of the matter.",
     documents: "Documents",
     documentsNote:
-      "Required before continuing: choose the proof of ID type and upload your ID. Proof of address is optional. Accepted formats: PDF, JPG or PNG, up to 10MB each.",
+      "You may upload documents now if helpful. You can also continue without documents and provide them later. Accepted formats: PDF, JPG or PNG, up to 10MB each.",
     idType: "Proof of ID type",
     nationalId: "National ID card",
     drivingLicence: "Driving licence",
     passport: "Passport",
-    idDocument: "Proof of ID",
+    idDocument: "Proof of ID (optional)",
     proofOfAddress: "Proof of address (optional)",
     consent: "I agree to be contacted about this appointment request.",
     continueToPayment: "Continue to payment",
@@ -130,6 +131,7 @@ const translations = {
     consultationLength: "Durata consultanței",
     areaOfLaw: "Domeniul juridic",
     feeEarner: "Avocat / consultant",
+    solicitorNote: "Consultanța va fi alocată unuia dintre avocații noștri disponibili.",
     selectOne: "Selectează",
     selectAreaFirst: "Selectează mai întâi domeniul juridic",
     availableTimes: "Ore disponibile",
@@ -142,12 +144,12 @@ const translations = {
     messagePlaceholder: "Scrie un scurt rezumat al situației.",
     documents: "Documente",
     documentsNote:
-      "Obligatoriu înainte de continuare: alege tipul actului de identitate și încarcă documentul. Dovada adresei este opțională. Formate acceptate: PDF, JPG sau PNG, maximum 10MB fiecare.",
+      "Poți încărca documente acum dacă este util. Poți continua și fără documente, urmând să le trimiți ulterior. Formate acceptate: PDF, JPG sau PNG, maximum 10MB fiecare.",
     idType: "Tip act de identitate",
     nationalId: "Carte de identitate",
     drivingLicence: "Permis de conducere",
     passport: "Pașaport",
-    idDocument: "Act de identitate",
+    idDocument: "Act de identitate (opțional)",
     proofOfAddress: "Dovada adresei (opțional)",
     consent: "Sunt de acord să fiu contactat/ă în legătură cu această cerere de programare.",
     continueToPayment: "Continuă către plată",
@@ -249,6 +251,10 @@ function isBooked(dateKey, time) {
   const mode = getSelectedMode();
   const consultant = getSelectedConsultant();
 
+  if (!consultant) {
+    return false;
+  }
+
   return bookedSlots.some(
     (booking) =>
       booking.date === dateKey &&
@@ -309,6 +315,7 @@ function renderCalendar() {
       selectedDate = date;
       selectedTime = "";
       formStatus.textContent = "";
+      renderConsultants();
       renderCalendar();
       renderSlots();
       updateSummary();
@@ -336,7 +343,7 @@ function renderSlots() {
 
   availableTimes.forEach((time) => {
     const button = createSlotButton(time);
-    button.disabled = isBooked(dateKey, time);
+    button.disabled = !getAssignableConsultant(dateKey, time);
 
     if (time === selectedTime) {
       button.classList.add("is-selected");
@@ -345,6 +352,7 @@ function renderSlots() {
     button.addEventListener("click", () => {
       selectedTime = time;
       formStatus.textContent = "";
+      renderConsultants();
       renderSlots();
       updateSummary();
       updatePaymentButtonState();
@@ -399,6 +407,7 @@ async function loadBookedSlots() {
 
     bookedSlots = await response.json();
     renderCalendar();
+    renderConsultants();
     renderSlots();
   } catch {
     formStatus.textContent =
@@ -470,6 +479,7 @@ async function loadAvailability() {
     renderAreas();
     renderConsultants();
     renderCalendar();
+    renderConsultants();
     renderSlots();
     updateSummary();
   } catch {
@@ -496,7 +506,7 @@ function getSelectedDuration() {
 }
 
 function getSelectedConsultant() {
-  return new FormData(bookingForm).get("consultant") || getConsultants()[0] || "";
+  return new FormData(bookingForm).get("consultant") || getAssignableConsultant() || getConsultants()[0] || "";
 }
 
 function getSelectedArea() {
@@ -522,14 +532,28 @@ function getModeAvailability() {
 }
 
 function getModeTimes() {
-  return getModeAvailability().times || [];
+  const selectedWeekday = selectedDate?.getDay();
+  const times = getEligibleConsultants()
+    .filter((consultant) =>
+      selectedWeekday === undefined ? true : isConsultantAvailableOnDay(consultant, selectedWeekday),
+    )
+    .flatMap((consultant) => consultant[getSelectedMode()]?.times || []);
+
+  return [...new Set(times)].sort();
 }
 
 function getModeWeekdays() {
-  return getModeAvailability().weekdays || [1, 2, 3, 4, 5];
+  const weekdays = getEligibleConsultants()
+    .flatMap((consultant) => consultant[getSelectedMode()]?.weekdays || []);
+
+  return [...new Set(weekdays)];
 }
 
 function getConsultants() {
+  return getEligibleConsultants().map((consultant) => consultant.name);
+}
+
+function getEligibleConsultants() {
   const area = getSelectedArea();
   const consultants = availability.consultants || [];
 
@@ -542,8 +566,43 @@ function getConsultants() {
       (consultant.areas || []).some(
         (consultantArea) => normaliseChoice(consultantArea) === normaliseChoice(area),
       ),
-    )
-    .map((consultant) => consultant.name);
+    );
+}
+
+function isConsultantAvailableOnDay(consultant, weekday) {
+  return (consultant[getSelectedMode()]?.weekdays || []).includes(weekday);
+}
+
+function isConsultantBooked(consultantName, dateKey, time) {
+  return bookedSlots.some(
+    (booking) =>
+      booking.date === dateKey &&
+      booking.time === time &&
+      booking.appointmentMode === getSelectedMode() &&
+      booking.consultant === consultantName,
+  );
+}
+
+function getAssignableConsultant(dateKey = selectedDate ? toDateKey(selectedDate) : "", time = selectedTime) {
+  const weekday = selectedDate?.getDay();
+
+  return (
+    getEligibleConsultants().find((consultant) => {
+      if (weekday !== undefined && !isConsultantAvailableOnDay(consultant, weekday)) {
+        return false;
+      }
+
+      if (time && !(consultant[getSelectedMode()]?.times || []).includes(time)) {
+        return false;
+      }
+
+      if (dateKey && time && isConsultantBooked(consultant.name, dateKey, time)) {
+        return false;
+      }
+
+      return true;
+    })?.name || ""
+  );
 }
 
 function getConsultantAvailability() {
@@ -569,14 +628,18 @@ function getAreas() {
 }
 
 function getFeeLabel(duration) {
-  const consultant = getConsultantAvailability();
-  const fee = Number(consultant?.fees?.[duration]);
+  const fees = getEligibleConsultants()
+    .map((consultant) => Number(consultant?.fees?.[duration]))
+    .filter((fee) => Number.isFinite(fee) && fee > 0);
 
-  if (!Number.isFinite(fee) || fee <= 0) {
+  if (!fees.length) {
     return t("feeToConfirm");
   }
 
-  return `£${fee} + VAT`;
+  const uniqueFees = [...new Set(fees)];
+  const lowestFee = Math.min(...fees);
+
+  return uniqueFees.length === 1 ? `£${lowestFee} + VAT` : `from £${lowestFee} + VAT`;
 }
 
 function renderAreas() {
@@ -600,26 +663,12 @@ function renderAreas() {
 
 function renderConsultants() {
   const select = bookingForm.elements.consultant;
-  const selected = select.value;
-  const consultants = getConsultants();
 
-  select.innerHTML = getSelectedArea()
-    ? `<option value="">${t("selectOne")}</option>`
-    : `<option value="">${t("selectAreaFirst")}</option>`;
-
-  consultants.forEach((name) => {
-    const option = document.createElement("option");
-    option.value = name;
-    option.textContent = name;
-    select.appendChild(option);
-  });
-
-  if (consultants.includes(selected)) {
-    select.value = selected;
-  } else if (consultants.length) {
-    select.value = consultants[0];
+  if (!select) {
+    return;
   }
 
+  select.value = getAssignableConsultant() || getConsultants()[0] || "";
   updateDurationLabels();
 }
 
@@ -637,17 +686,13 @@ function updateDurationLabels() {
 
 function updatePaymentButtonState() {
   const formData = new FormData(bookingForm);
-  const idDocument = bookingForm.elements.idDocument?.files?.[0];
   const hasAppointment = Boolean(selectedDate && selectedTime);
-  const hasDocuments = Boolean(idDocument);
   const requiredFieldsComplete = [
     "areaOfLaw",
     "fullName",
     "email",
     "phone",
     "caseType",
-    "consultant",
-    "idType",
     "hilexMember",
     "message",
   ].every((name) => Boolean(String(formData.get(name) || "").trim()));
@@ -656,7 +701,6 @@ function updatePaymentButtonState() {
   submitButton.disabled = Boolean(
     isSubmitting ||
       !hasAppointment ||
-      !hasDocuments ||
       !requiredFieldsComplete ||
       !consentChecked,
   );
@@ -751,10 +795,12 @@ bookingForm.addEventListener("submit", async (event) => {
   }
 
   const dateKey = toDateKey(selectedDate);
+  const assignedConsultant = getAssignableConsultant(dateKey, selectedTime);
 
-  if (isBooked(dateKey, selectedTime)) {
+  if (!assignedConsultant) {
     formStatus.textContent = t("timeBooked");
     selectedTime = "";
+    renderConsultants();
     renderSlots();
     updateSummary();
     return;
@@ -763,6 +809,7 @@ bookingForm.addEventListener("submit", async (event) => {
   const formData = new FormData(bookingForm);
   formData.set("date", dateKey);
   formData.set("time", selectedTime);
+  formData.set("consultant", assignedConsultant);
 
   isSubmitting = true;
   updatePaymentButtonState();

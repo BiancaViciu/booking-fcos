@@ -11,44 +11,46 @@
       <a class="brand" href="https://fcos.co.uk" aria-label="Forest & Co home">
         <img src="fcos-logo.png" alt="Forest & Co Legal Experts" />
       </a>
+      <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch language">
+        Română
+      </button>
     </header>
 
     <main class="booking-app">
       <section class="intro" aria-label="Law firm appointment booking">
         <div class="intro__content">
-          <p class="eyebrow">Legal direction</p>
-          <h1>Book a consultation with Forest & Co</h1>
+          <p class="eyebrow" data-i18n="eyebrow">Legal direction</p>
+          <h1 data-i18n="heroTitle">Book a consultation with Forest & Co</h1>
           <span class="title-rule" aria-hidden="true"></span>
-          <p>
+          <p data-i18n="heroText">
             Choose a suitable time and share a short outline of your matter.
             Our team will review your request with discretion, structure and care.
           </p>
           <div class="intro-actions" aria-label="Consultation details">
-            <span><strong>London law firm</strong>International expertise</span>
-            <span><strong>Individuals & businesses</strong>Tailored legal solutions</span>
-            <span><strong>SRA regulated</strong>Your matter is protected</span>
+            <span><strong data-i18n="heroPointOneTitle">London law firm</strong><span data-i18n="heroPointOneText">International expertise</span></span>
+            <span><strong data-i18n="heroPointTwoTitle">Individuals & businesses</strong><span data-i18n="heroPointTwoText">Tailored legal solutions</span></span>
+            <span><strong data-i18n="heroPointThreeTitle">SRA regulated</strong><span data-i18n="heroPointThreeText">Your matter is protected</span></span>
           </div>
         </div>
 
         <div class="guidance-panel" aria-label="Forest & Co approach">
           <div>
-            <p>We guide.</p>
-            <p>We clarify.</p>
-            <p>We protect.</p>
+            <p data-i18n="guideOne">We guide.</p>
+            <p data-i18n="guideTwo">We clarify.</p>
+            <p data-i18n="guideThree">We protect.</p>
           </div>
           <div>
-            <p>
+            <p data-i18n="guideText">
               From complex legal matters to everyday decisions, we provide clear
               advice and strategic support you can rely on.
             </p>
-            <a href="https://fcos.co.uk/the-firm/">Learn more about us <span aria-hidden="true">→</span></a>
+            <a href="https://fcos.co.uk/the-firm/"><span data-i18n="learnMore">Learn more about us</span> <span aria-hidden="true">→</span></a>
           </div>
         </div>
       </section>
 
       <section class="booking-panel" aria-label="Booking form">
         <div class="calendar-card">
-          <div class="panel-kicker">Step 1</div>
           <div class="calendar-head">
             <button class="icon-button" id="prevMonth" type="button" aria-label="Previous month">
               <span aria-hidden="true">&lt;</span>
@@ -74,47 +76,46 @@
 
         <form class="form-card" id="bookingForm">
           <div>
-            <div class="panel-kicker">Step 2</div>
-            <p class="section-label">Selected appointment</p>
+            <p class="section-label" data-i18n="selectedAppointment">Selected appointment</p>
             <div class="summary" id="appointmentSummary">Choose a weekday from the calendar.</div>
-            <p class="info-note" id="emailNote">
+            <p class="info-note" id="emailNote" data-i18n="paymentNote">
               Choose your consultation type, then complete payment securely through Stripe.
             </p>
           </div>
 
           <div class="booking-options">
             <fieldset>
-              <legend>Are you a HiLex member?</legend>
+              <legend data-i18n="hilexQuestion">Are you a HiLex member?</legend>
               <div class="choice-grid two">
                 <label class="choice-card">
                   <input name="hilexMember" type="radio" value="yes" />
-                  <span>Yes</span>
-                  <small>No consultation fee</small>
+                  <span data-i18n="yes">Yes</span>
+                  <small data-i18n="noConsultationFee">No consultation fee</small>
                 </label>
                 <label class="choice-card">
                   <input name="hilexMember" type="radio" value="no" checked />
-                  <span>No</span>
-                  <small>Consultation fee applies</small>
+                  <span data-i18n="no">No</span>
+                  <small data-i18n="consultationFeeApplies">Consultation fee applies</small>
                 </label>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend>Appointment type</legend>
+              <legend data-i18n="appointmentType">Appointment type</legend>
               <div class="choice-grid two">
                 <label class="choice-card">
                   <input name="appointmentMode" type="radio" value="online" checked />
-                  <span>Online</span>
+                  <span data-i18n="online">Online</span>
                 </label>
                 <label class="choice-card">
                   <input name="appointmentMode" type="radio" value="inPerson" />
-                  <span>In person</span>
+                  <span data-i18n="inPerson">In person</span>
                 </label>
               </div>
             </fieldset>
 
             <fieldset>
-              <legend>Consultation length</legend>
+              <legend data-i18n="consultationLength">Consultation length</legend>
               <div class="choice-grid two">
                 <label class="choice-card">
                   <input name="duration" type="radio" value="15" checked />
@@ -131,75 +132,74 @@
           </div>
 
           <label>
-            Area of law
+            <span data-i18n="areaOfLaw">Area of law</span>
             <select name="areaOfLaw" required>
               <option value="">Select one</option>
             </select>
           </label>
 
-          <label>
-            Fee earner
-            <select name="consultant" required>
-              <option value="">Select an area of law first</option>
-            </select>
-          </label>
+          <input name="consultant" type="hidden" />
+          <p class="info-note solicitor-note" data-i18n="solicitorNote">
+            Your consultation will be arranged with one of our available solicitors.
+          </p>
 
           <fieldset>
-            <legend>Available times</legend>
+            <legend data-i18n="availableTimes">Available times</legend>
             <div class="slots" id="timeSlots" aria-label="Available appointment times"></div>
           </fieldset>
 
           <div class="form-grid">
             <label>
-              Full name
+              <span data-i18n="fullName">Full name</span>
               <input name="fullName" autocomplete="name" required />
             </label>
             <label>
-              Email
+              <span data-i18n="email">Email</span>
               <input name="email" type="email" autocomplete="email" required />
             </label>
             <label>
-              Phone number
+              <span data-i18n="phone">Phone number</span>
               <input name="phone" type="tel" autocomplete="tel" required />
             </label>
             <label>
-              Case type
-              <input name="caseType" placeholder="e.g. divorce, visa, employment dispute" required />
+              <span data-i18n="caseType">Case type</span>
+              <input name="caseType" placeholder="e.g. divorce, visa, employment dispute" data-i18n-placeholder="caseTypePlaceholder" required />
             </label>
           </div>
 
           <label>
-            Brief description
+            <span data-i18n="briefDescription">Brief description</span>
             <textarea
               name="message"
               rows="4"
               placeholder="Share a short summary of the matter."
+              data-i18n-placeholder="messagePlaceholder"
               required
             ></textarea>
           </label>
 
           <fieldset>
-            <legend>Documents</legend>
-            <p class="info-note">
-              Required before continuing: choose the proof of ID type and upload your ID. Proof of address is optional.
+            <legend data-i18n="documents">Documents</legend>
+            <p class="info-note" data-i18n="documentsNote">
+              You may upload documents now if helpful. You can also continue without documents and provide them later.
               Accepted formats: PDF, JPG or PNG, up to 10MB each.
             </p>
             <div class="form-grid">
               <label>
-                Proof of ID type
-                <select name="idType" required>
-                  <option value="">Select one</option>
-                  <option>National ID card</option>
-                  <option>Driving licence</option>
-                  <option>Passport</option>
+                <span data-i18n="idType">Proof of ID type</span>
+                <select name="idType">
+                  <option value="" data-i18n="selectOne">Select one</option>
+                  <option value="National ID card" data-i18n="nationalId">National ID card</option>
+                  <option value="Driving licence" data-i18n="drivingLicence">Driving licence</option>
+                  <option value="Passport" data-i18n="passport">Passport</option>
                 </select>
               </label>
               <label>
-                Proof of ID
-                <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+                <span data-i18n="idDocument">Proof of ID (optional)</span>
+                <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
               </label>
               <label>
-                Proof of address (optional)
+                <span data-i18n="proofOfAddress">Proof of address (optional)</span>
                 <input name="proofOfAddress" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
               </label>
             </div>
@@ -207,7 +207,7 @@
 
           <label class="consent">
             <input name="consent" type="checkbox" required />
-            <span>I agree to be contacted about this appointment request.</span>
+            <span data-i18n="consent">I agree to be contacted about this appointment request.</span>
           </label>
 
           <button class="submit-button" id="submitButton" type="submit" disabled>
@@ -228,7 +228,7 @@
       <article class="booking-receipt">
         <h2 id="receiptTitle">Booking request sent</h2>
         <p id="receiptText"></p>
-        <button class="submit-button" id="newBooking" type="button">Book another appointment</button>
+        <button class="submit-button" id="newBooking" type="button" data-i18n="bookAnother">Book another appointment</button>
       </article>
     </template>
 
