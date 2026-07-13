@@ -888,23 +888,30 @@ async function sendBookingEmails(booking) {
   const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
   const durationLine = `${booking.duration} minutes`;
   const hilexLine = booking.hilexMember === "yes" ? "Yes - no consultation fee" : "No";
+  const clientText = buildClientBookingText(booking, {
+    appointmentLine,
+    appointmentType,
+    durationLine,
+    hilexLine,
+  });
+  const firmText = buildFirmBookingText(booking, {
+    appointmentLine,
+    appointmentType,
+    durationLine,
+    hilexLine,
+  });
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || firmEmail,
     to: booking.email,
     subject: "Your legal consultation request is confirmed",
-    text: [
-      `Hello ${booking.fullName},`,
-      "",
-      `Your consultation request is confirmed for ${appointmentLine}.`,
-      `Appointment type: ${appointmentType}`,
-      `Consultation length: ${durationLine}`,
-      `Consultant: ${booking.consultant}`,
-      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
-      `HiLex member: ${hilexLine}`,
-      "",
-      "A member of the firm will contact you if any additional details are needed.",
-    ].join("\n"),
+    text: clientText,
+    html: buildClientBookingHtml(booking, {
+      appointmentLine,
+      appointmentType,
+      durationLine,
+      hilexLine,
+    }),
   });
 
   console.log(`Client confirmation email sent to ${booking.email}`);
@@ -913,24 +920,13 @@ async function sendBookingEmails(booking) {
     from: process.env.EMAIL_FROM || firmEmail,
     to: firmEmail,
     subject: `New booking request: ${booking.fullName}`,
-    text: [
-      "A new consultation booking request was received.",
-      "",
-      `Name: ${booking.fullName}`,
-      `Email: ${booking.email}`,
-      `Phone: ${booking.phone}`,
-      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
-      `HiLex member: ${hilexLine}`,
-      `Appointment type: ${appointmentType}`,
-      `Consultation length: ${durationLine}`,
-      `Consultant: ${booking.consultant}`,
-      `Appointment: ${appointmentLine}`,
-      `Proof of ID type: ${booking.idType || "Not provided"}`,
-      `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
-      "",
-      "Client message:",
-      booking.message,
-    ].join("\n"),
+    text: firmText,
+    html: buildFirmBookingHtml(booking, {
+      appointmentLine,
+      appointmentType,
+      durationLine,
+      hilexLine,
+    }),
     attachments: (booking.documents || []).map((document) => ({
       filename: `${document.label} - ${document.originalName}`,
       path: document.path,
@@ -943,15 +939,13 @@ async function sendBookingEmails(booking) {
 
 async function sendTestEmail() {
   if (process.env.RESEND_API_KEY) {
+    const text = buildTestEmailText();
+
     await sendResendEmail({
       to: firmEmail,
       subject: "Forest & Co booking email test",
-      text: [
-        "This is a test email from the Forest & Co booking website.",
-        "",
-        "Email provider: Resend",
-        `Sent at: ${new Date().toISOString()}`,
-      ].join("\n"),
+      text,
+      html: buildTestEmailHtml("Resend"),
     });
     console.log(`Admin Resend test email sent to ${firmEmail}`);
     return;
@@ -962,16 +956,14 @@ async function sendTestEmail() {
   }
 
   const transporter = createEmailTransporter();
+  const text = buildTestEmailText();
 
   await transporter.sendMail({
     from: process.env.EMAIL_FROM || firmEmail,
     to: firmEmail,
     subject: "Forest & Co booking email test",
-    text: [
-      "This is a test email from the Forest & Co booking website.",
-      "",
-      `Sent at: ${new Date().toISOString()}`,
-    ].join("\n"),
+    text,
+    html: buildTestEmailHtml("SMTP"),
   });
 
   console.log(`Admin test email sent to ${firmEmail}`);
@@ -986,70 +978,72 @@ async function sendBookingEmailsWithResend(booking) {
   const appointmentType = booking.appointmentMode === "inPerson" ? "In person" : "Online";
   const durationLine = `${booking.duration} minutes`;
   const hilexLine = booking.hilexMember === "yes" ? "Yes - no consultation fee" : "No";
+  const clientText = buildClientBookingText(booking, {
+    appointmentLine,
+    appointmentType,
+    durationLine,
+    hilexLine,
+  });
+  const firmText = buildFirmBookingText(booking, {
+    appointmentLine,
+    appointmentType,
+    durationLine,
+    hilexLine,
+  });
 
   await sendResendEmail({
     to: booking.email,
     subject: "Your legal consultation request is confirmed",
-    text: [
-      `Hello ${booking.fullName},`,
-      "",
-      `Your consultation request is confirmed for ${appointmentLine}.`,
-      `Appointment type: ${appointmentType}`,
-      `Consultation length: ${durationLine}`,
-      `Consultant: ${booking.consultant}`,
-      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
-      `HiLex member: ${hilexLine}`,
-      "",
-      "A member of the firm will contact you if any additional details are needed.",
-    ].join("\n"),
+    text: clientText,
+    html: buildClientBookingHtml(booking, {
+      appointmentLine,
+      appointmentType,
+      durationLine,
+      hilexLine,
+    }),
   });
   console.log(`Client Resend confirmation email sent to ${booking.email}`);
 
   await sendResendEmail({
     to: firmEmail,
     subject: `New booking request: ${booking.fullName}`,
-    text: [
-      "A new consultation booking request was received.",
-      "",
-      `Name: ${booking.fullName}`,
-      `Email: ${booking.email}`,
-      `Phone: ${booking.phone}`,
-      `Area of law: ${booking.areaOfLaw || booking.caseType}`,
-      `HiLex member: ${hilexLine}`,
-      `Appointment type: ${appointmentType}`,
-      `Consultation length: ${durationLine}`,
-      `Consultant: ${booking.consultant}`,
-      `Appointment: ${appointmentLine}`,
-      `Proof of ID type: ${booking.idType || "Not provided"}`,
-      `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
-      "",
-      "Client message:",
-      booking.message,
-    ].join("\n"),
+    text: firmText,
+    html: buildFirmBookingHtml(booking, {
+      appointmentLine,
+      appointmentType,
+      durationLine,
+      hilexLine,
+    }),
     attachments: getResendAttachments(booking),
   });
   console.log(`Firm Resend booking email sent to ${firmEmail}`);
 }
 
-async function sendResendEmail({ to, subject, text, attachments = [] }) {
+async function sendResendEmail({ to, subject, text, html, attachments = [] }) {
   if (!firmEmail) {
     throw new Error("FIRM_EMAIL is not configured in Render.");
   }
 
   const from = process.env.RESEND_FROM || process.env.EMAIL_FROM || firmEmail;
+  const emailPayload = {
+    from,
+    to: [to],
+    subject,
+    text,
+    attachments,
+  };
+
+  if (html) {
+    emailPayload.html = html;
+  }
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text,
-      attachments,
-    }),
+    body: JSON.stringify(emailPayload),
   });
   const payload = await response.json().catch(() => ({}));
 
@@ -1067,6 +1061,206 @@ function getResendAttachments(booking) {
       filename: `${document.label} - ${document.originalName}`,
       content: fs.readFileSync(document.path).toString("base64"),
     }));
+}
+
+function buildClientBookingText(booking, details) {
+  return [
+    `Dear ${booking.fullName},`,
+    "",
+    `Thank you for booking a consultation with Forest & Co Solicitors. Your request is confirmed for ${details.appointmentLine}.`,
+    "",
+    `Appointment type: ${details.appointmentType}`,
+    `Consultation length: ${details.durationLine}`,
+    `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+    `HiLex member: ${details.hilexLine}`,
+    "",
+    "Your consultation will be arranged with one of our available solicitors. A member of the firm will contact you if any additional details are needed.",
+    "",
+    "Kind regards,",
+    "Forest & Co Solicitors",
+    "",
+    getLegalNoticeText(),
+  ].join("\n");
+}
+
+function buildFirmBookingText(booking, details) {
+  return [
+    "A new consultation booking request was received.",
+    "",
+    `Name: ${booking.fullName}`,
+    `Email: ${booking.email}`,
+    `Phone: ${booking.phone}`,
+    `Area of law: ${booking.areaOfLaw || booking.caseType}`,
+    `HiLex member: ${details.hilexLine}`,
+    `Appointment type: ${details.appointmentType}`,
+    `Consultation length: ${details.durationLine}`,
+    `Assigned solicitor: ${booking.consultant || "To be assigned"}`,
+    `Appointment: ${details.appointmentLine}`,
+    `Proof of ID type: ${booking.idType || "Not provided"}`,
+    `Uploaded documents: ${booking.documents?.length ? booking.documents.map((document) => document.label).join(", ") : "None"}`,
+    "",
+    "Client message:",
+    booking.message || "No message provided.",
+    "",
+    "Kind regards,",
+    "Forest & Co Booking System",
+  ].join("\n");
+}
+
+function buildTestEmailText() {
+  return [
+    "This is a test email from the Forest & Co booking website.",
+    "",
+    `Sent at: ${new Date().toISOString()}`,
+    "",
+    "Kind regards,",
+    "Forest & Co Solicitors",
+    "",
+    getLegalNoticeText(),
+  ].join("\n");
+}
+
+function buildClientBookingHtml(booking, details) {
+  return buildForestEmailHtml({
+    eyebrow: "Booking confirmed",
+    title: "Your consultation request is confirmed",
+    intro: [
+      `Dear ${escapeHtml(booking.fullName)},`,
+      `Thank you for booking a consultation with Forest & Co Solicitors. Your request is confirmed for <strong>${escapeHtml(details.appointmentLine)}</strong>.`,
+      "Your consultation will be arranged with one of our available solicitors. A member of the firm will contact you if any additional details are needed.",
+    ],
+    rows: [
+      ["Appointment", details.appointmentLine],
+      ["Appointment type", details.appointmentType],
+      ["Consultation length", details.durationLine],
+      ["Area of law", booking.areaOfLaw || booking.caseType],
+      ["HiLex member", details.hilexLine],
+    ],
+    signOff: "Forest & Co Solicitors",
+  });
+}
+
+function buildFirmBookingHtml(booking, details) {
+  return buildForestEmailHtml({
+    eyebrow: "New booking request",
+    title: `New consultation booking: ${escapeHtml(booking.fullName)}`,
+    intro: ["A new consultation booking request was received through the Forest & Co booking website."],
+    rows: [
+      ["Name", booking.fullName],
+      ["Email", booking.email],
+      ["Phone", booking.phone],
+      ["Area of law", booking.areaOfLaw || booking.caseType],
+      ["HiLex member", details.hilexLine],
+      ["Appointment type", details.appointmentType],
+      ["Consultation length", details.durationLine],
+      ["Assigned solicitor", booking.consultant || "To be assigned"],
+      ["Appointment", details.appointmentLine],
+      ["Proof of ID type", booking.idType || "Not provided"],
+      [
+        "Uploaded documents",
+        booking.documents?.length
+          ? booking.documents.map((document) => document.label).join(", ")
+          : "None",
+      ],
+    ],
+    message: booking.message || "No message provided.",
+    signOff: "Forest & Co Booking System",
+    includeLegalNotice: false,
+  });
+}
+
+function buildTestEmailHtml(provider) {
+  return buildForestEmailHtml({
+    eyebrow: "Email test",
+    title: "Forest & Co booking email test",
+    intro: ["This is a test email from the Forest & Co booking website."],
+    rows: [
+      ["Email provider", provider],
+      ["Sent at", new Date().toISOString()],
+    ],
+    signOff: "Forest & Co Solicitors",
+  });
+}
+
+function buildForestEmailHtml({
+  eyebrow,
+  title,
+  intro = [],
+  rows = [],
+  message = "",
+  signOff = "Forest & Co Solicitors",
+  includeLegalNotice = true,
+}) {
+  const logoUrl = `${siteUrl.replace(/\/$/, "")}/fcos-logo.png`;
+  const introHtml = intro
+    .map((paragraph) => `<p style="margin:0 0 16px;color:#30334a;font-size:16px;line-height:1.65;">${paragraph}</p>`)
+    .join("");
+  const rowsHtml = rows
+    .map(
+      ([label, value]) => `
+        <tr>
+          <td style="padding:13px 16px;border-bottom:1px solid #ececf4;color:#6b7087;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;width:38%;">${escapeHtml(label)}</td>
+          <td style="padding:13px 16px;border-bottom:1px solid #ececf4;color:#0c0d3d;font-size:15px;font-weight:700;">${escapeHtml(value || "Not provided")}</td>
+        </tr>`,
+    )
+    .join("");
+  const messageHtml = message
+    ? `<div style="margin-top:22px;padding:18px 20px;border-left:4px solid #e1007a;background:#faf9fd;color:#30334a;font-size:15px;line-height:1.6;">${escapeHtml(message)}</div>`
+    : "";
+  const legalNoticeHtml = includeLegalNotice
+    ? `<div style="margin-top:26px;padding-top:18px;border-top:1px solid #ececf4;color:#777b8f;font-size:10.5px;line-height:1.55;">${escapeHtml(getLegalNoticeText())}</div>`
+    : "";
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f4f5fa;font-family:Arial,Helvetica,sans-serif;">
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent;">${escapeHtml(title)}</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f5fa;padding:32px 14px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px rgba(12,13,61,.10);">
+            <tr>
+              <td style="background:#090942;padding:34px 42px 38px;">
+                <img src="${escapeHtml(logoUrl)}" alt="Forest & Co Legal Experts" width="150" style="display:block;max-width:150px;height:auto;margin-bottom:28px;background:#ffffff;border-radius:10px;padding:10px;" />
+                <div style="color:#e1007a;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">${escapeHtml(eyebrow)}</div>
+                <h1 style="margin:0;color:#ffffff;font-size:30px;line-height:1.18;font-weight:800;">${title}</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:38px 42px 34px;">
+                ${introHtml}
+                ${
+                  rowsHtml
+                    ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;border:1px solid #ececf4;border-collapse:collapse;background:#ffffff;">${rowsHtml}</table>`
+                    : ""
+                }
+                ${messageHtml}
+                <div style="margin-top:28px;color:#30334a;font-size:15px;line-height:1.65;">
+                  Kind regards,<br />
+                  <strong style="color:#0c0d3d;">${escapeHtml(signOff)}</strong>
+                </div>
+                ${legalNoticeHtml}
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
+function getLegalNoticeText() {
+  return "IMPORTANT NOTICE: The information in this email and its attachments is confidential and may be protected by law and legal privilege. Access by anyone other than the intended addressee is not authorised. If you are not the intended addressee, please accept our apologies and notify the sender immediately. You must not discuss, disclose the contents of this email, store, copy or distribute it. Please note that neither Forest & Co nor the sender accepts any responsibility for viruses and it is your responsibility to scan the email and any attachments. Any liability arising from any third party taking action or failing to take action in view of the information provided in this email is hereby excluded. Forest & Co is a trading name of Forest Corporate Ltd, a limited company registered in England and Wales with registered number 11229601. Forest & Co is authorised and regulated by the Solicitors Regulation Authority, firm number 647302.";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function createEmailTransporter() {
