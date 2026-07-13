@@ -1220,10 +1220,14 @@ function buildForestEmailHtml({
         <td align="center">
           <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 18px 50px rgba(12,13,61,.10);">
             <tr>
-              <td style="background:#090942;padding:34px 42px 38px;">
-                <img src="${escapeHtml(logoUrl)}" alt="Forest & Co Legal Experts" width="150" style="display:block;max-width:150px;height:auto;margin-bottom:28px;background:#ffffff;border-radius:10px;padding:10px;" />
-                <div style="color:#e1007a;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">${escapeHtml(eyebrow)}</div>
-                <h1 style="margin:0;color:#ffffff;font-size:30px;line-height:1.18;font-weight:800;">${title}</h1>
+              <td style="background:#ffffff;padding:0;">
+                <div style="height:9px;background:#090942;line-height:9px;font-size:0;">&nbsp;</div>
+                <div style="padding:32px 42px 34px;border-bottom:1px solid #ececf4;">
+                  <img src="${escapeHtml(logoUrl)}" alt="Forest & Co Legal Experts" width="142" style="display:block;max-width:142px;height:auto;margin:0 0 28px;border:0;outline:none;text-decoration:none;" />
+                  <div style="color:#e1007a;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">${escapeHtml(eyebrow)}</div>
+                  <h1 style="margin:0;color:#0c0d3d;font-size:30px;line-height:1.18;font-weight:800;">${title}</h1>
+                  <div style="width:58px;height:4px;background:#e1007a;margin-top:22px;line-height:4px;font-size:0;">&nbsp;</div>
+                </div>
               </td>
             </tr>
             <tr>
