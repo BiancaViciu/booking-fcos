@@ -10,10 +10,12 @@ const addConsultantButton = document.querySelector("#addConsultant");
 const refreshBookingsButton = document.querySelector("#refreshBookings");
 const syncPaymentsButton = document.querySelector("#syncPayments");
 const sendTestEmailButton = document.querySelector("#sendTestEmail");
+const refreshServiceOptionsButton = document.querySelector("#refreshServiceOptions");
 const adminStatus = document.querySelector("#adminStatus");
 const bookingStatus = document.querySelector("#bookingStatus");
 const emailTestStatus = document.querySelector("#emailTestStatus");
 const bookingList = document.querySelector("#bookingList");
+const serviceListInput = document.querySelector("#serviceList");
 
 const days = [
   ["1", "Mon"],
@@ -26,7 +28,7 @@ const days = [
 ];
 
 let adminPin = "";
-let availability = { consultants: [] };
+let availability = { services: [], consultants: [] };
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -61,11 +63,16 @@ document.querySelectorAll(".admin-tab").forEach((tab) => {
 refreshBookingsButton.addEventListener("click", loadBookings);
 syncPaymentsButton.addEventListener("click", syncPayments);
 sendTestEmailButton.addEventListener("click", sendTestEmail);
+refreshServiceOptionsButton.addEventListener("click", () => {
+  availability = collectAvailability();
+  renderAvailability();
+  adminStatus.textContent = "Area options updated. Click Save availability to publish the change.";
+});
 
 addConsultantButton.addEventListener("click", () => {
   availability.consultants.push({
     name: "New fee earner",
-    areas: ["Family law"],
+    areas: [getServices()[0] || "Family Law"],
     fees: { 15: 140, 30: 280 },
     online: { weekdays: [1, 2, 3, 4, 5], times: ["09:00"] },
     inPerson: { weekdays: [2, 3, 4], times: ["10:00"] },
@@ -123,20 +130,22 @@ async function loadAvailability(validatePin = false) {
 
 function renderAvailability() {
   consultantList.innerHTML = "";
+  serviceListInput.value = getServices().join("\n");
 
   availability.consultants.forEach((consultant, index) => {
     const card = consultantTemplate.content.cloneNode(true);
     const root = card.querySelector(".consultant-card");
     const nameInput = card.querySelector(".consultant-name");
-    const areasInput = card.querySelector(".consultant-areas");
+    const areasContainer = card.querySelector(".consultant-area-options");
     const fee15Input = card.querySelector(".consultant-fee-15");
     const fee30Input = card.querySelector(".consultant-fee-30");
 
     root.dataset.index = index;
     nameInput.value = consultant.name;
-    areasInput.value = (consultant.areas || []).join(", ");
     fee15Input.value = consultant.fees?.[15] ?? consultant.fees?.["15"] ?? 140;
     fee30Input.value = consultant.fees?.[30] ?? consultant.fees?.["30"] ?? 280;
+
+    renderAreaOptions(areasContainer, consultant.areas || []);
 
     card.querySelector(".remove-consultant").addEventListener("click", () => {
       availability.consultants.splice(index, 1);
@@ -167,15 +176,17 @@ function renderAvailability() {
 }
 
 function collectAvailability() {
+  const services = collectServices();
+
   return {
+    services,
     consultants: [...consultantList.querySelectorAll(".consultant-card")].map((card) => {
+      const selectedAreas = [...card.querySelectorAll(".consultant-area-options input:checked")]
+        .map((input) => input.value)
+        .filter(Boolean);
       const consultant = {
         name: card.querySelector(".consultant-name").value.trim(),
-        areas: card
-          .querySelector(".consultant-areas")
-          .value.split(/[\n,]+/)
-          .map((area) => area.trim())
-          .filter(Boolean),
+        areas: selectedAreas.length ? selectedAreas : services.slice(0, 1),
         fees: {
           15: Number(card.querySelector(".consultant-fee-15").value || 0),
           30: Number(card.querySelector(".consultant-fee-30").value || 0),
@@ -187,6 +198,64 @@ function collectAvailability() {
       return consultant;
     }),
   };
+}
+
+function collectServices() {
+  return serviceListInput.value
+    .split(/[\n,]+/)
+    .map((service) => service.trim())
+    .filter(Boolean)
+    .filter((service, index, list) =>
+      list.findIndex((item) => item.toLowerCase() === service.toLowerCase()) === index,
+    );
+}
+
+function getServices() {
+  const services = availability.services || [];
+
+  if (services.length) {
+    return services;
+  }
+
+  return [
+    ...new Set(
+      (availability.consultants || [])
+        .flatMap((consultant) => consultant.areas || [])
+        .map((area) => String(area).trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
+function renderAreaOptions(container, selectedAreas) {
+  const selectedKeys = new Set(selectedAreas.map((area) => area.toLowerCase()));
+  container.innerHTML = "";
+
+  getServices().forEach((service) => {
+    const option = document.createElement("label");
+    option.className = "area-toggle";
+    option.innerHTML = `
+      <input type="checkbox" value="${escapeAttribute(service)}" ${selectedKeys.has(service.toLowerCase()) ? "checked" : ""}>
+      <span>${escapeHtml(service)}</span>
+    `;
+    container.appendChild(option);
+  });
+
+  if (!container.children.length) {
+    container.innerHTML = '<p class="admin-empty">Add services above, then click Update area options.</p>';
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }
 
 function collectMode(card, mode) {
