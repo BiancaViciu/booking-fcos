@@ -1210,6 +1210,7 @@ function buildForestEmailHtml({
   const legalNoticeHtml = includeLegalNotice
     ? `<div style="margin-top:26px;padding-top:18px;border-top:1px solid #ececf4;color:#777b8f;font-size:10.5px;line-height:1.55;">${escapeHtml(getLegalNoticeText())}</div>`
     : "";
+  const contactDetailsHtml = buildContactDetailsHtml();
 
   return `<!doctype html>
 <html>
@@ -1243,6 +1244,7 @@ function buildForestEmailHtml({
                   Kind regards,<br />
                   <strong style="color:#0c0d3d;">${escapeHtml(signOff)}</strong>
                 </div>
+                ${contactDetailsHtml}
                 ${legalNoticeHtml}
               </td>
             </tr>
@@ -1256,6 +1258,15 @@ function buildForestEmailHtml({
 
 function getLegalNoticeText() {
   return "IMPORTANT NOTICE: The information in this email and its attachments is confidential and may be protected by law and legal privilege. Access by anyone other than the intended addressee is not authorised. If you are not the intended addressee, please accept our apologies and notify the sender immediately. You must not discuss, disclose the contents of this email, store, copy or distribute it. Please note that neither Forest & Co nor the sender accepts any responsibility for viruses and it is your responsibility to scan the email and any attachments. Any liability arising from any third party taking action or failing to take action in view of the information provided in this email is hereby excluded. Forest & Co is a trading name of Forest Corporate Ltd, a limited company registered in England and Wales with registered number 11229601. Forest & Co is authorised and regulated by the Solicitors Regulation Authority, firm number 647302.";
+}
+
+function buildContactDetailsHtml() {
+  return `
+    <div style="margin-top:20px;padding-top:18px;border-top:3px solid #24256f;color:#24256f;font-size:14px;line-height:1.75;">
+      <div><strong style="color:#24256f;">Phone</strong> <a href="tel:+442033830173" style="color:#222;text-decoration:underline;">+44 (0)20 3383 0173</a> <span style="color:#24256f;">&nbsp;|&nbsp;</span> <strong style="color:#24256f;">Website</strong> <a href="https://www.fcos.co.uk" style="color:#222;text-decoration:underline;">www.fcos.co.uk</a></div>
+      <div><strong style="color:#24256f;">Email</strong> <a href="mailto:enquiries@fcos.co.uk" style="color:#222;text-decoration:underline;">enquiries@fcos.co.uk</a></div>
+      <div><strong style="color:#24256f;">Address</strong> <span style="color:#222;text-decoration:underline;">16 Berkeley Street, W1J 8DZ, London</span></div>
+    </div>`;
 }
 
 function escapeHtml(value) {
