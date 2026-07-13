@@ -138,13 +138,6 @@
             </select>
           </label>
 
-          <label>
-            <span data-i18n="feeEarner">Fee earner</span>
-            <select name="consultant" required>
-              <option value="">Select an area of law first</option>
-            </select>
-          </label>
-
           <p class="info-note solicitor-note" data-i18n="solicitorNote">
             Your consultation will be arranged with one of our available solicitors.
           </p>
@@ -187,13 +180,13 @@
           <fieldset>
             <legend data-i18n="documents">Documents</legend>
             <p class="info-note" data-i18n="documentsNote">
-              Required before continuing: choose the proof of ID type and upload your ID. Proof of address is optional.
+              You may upload documents now if helpful. You can also continue without documents and provide them later.
               Accepted formats: PDF, JPG or PNG, up to 10MB each.
             </p>
             <div class="form-grid">
               <label>
                 <span data-i18n="idType">Proof of ID type</span>
-                <select name="idType" required>
+                <select name="idType">
                   <option value="" data-i18n="selectOne">Select one</option>
                   <option value="National ID card" data-i18n="nationalId">National ID card</option>
                   <option value="Driving licence" data-i18n="drivingLicence">Driving licence</option>
@@ -201,8 +194,8 @@
                 </select>
               </label>
               <label>
-                <span data-i18n="idDocument">Proof of ID</span>
-                <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required />
+                <span data-i18n="idDocument">Proof of ID (optional)</span>
+                <input name="idDocument" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" />
               </label>
               <label>
                 <span data-i18n="proofOfAddress">Proof of address (optional)</span>

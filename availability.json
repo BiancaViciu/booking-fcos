@@ -14,7 +14,7 @@
   "consultants": [
     {
       "name": "Mihaela Pădure",
-      "areas": ["Family law", "Immigration"],
+      "areas": ["Family Law", "Immigration"],
       "fees": { "15": 140, "30": 280 },
       "online": {
         "weekdays": [1, 2, 3, 4, 5],
@@ -27,7 +27,7 @@
     },
     {
       "name": "Sandra Zăuleț",
-      "areas": ["Business law", "Employment law", "Real estate"],
+      "areas": ["Business Law", "Employment Law", "Real Estate"],
       "fees": { "15": 140, "30": 280 },
       "online": {
         "weekdays": [1, 3, 5],
@@ -40,7 +40,7 @@
     },
     {
       "name": "Eleonora Sorodoc",
-      "areas": ["Immigration", "Criminal defense", "Other"],
+      "areas": ["Immigration", "Criminal Law", "Other"],
       "fees": { "15": 140, "30": 280 },
       "online": {
         "weekdays": [2, 4],
