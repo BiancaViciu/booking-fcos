@@ -100,6 +100,20 @@
               </div>
             </fieldset>
 
+            <label class="hilex-verification" id="hilexVerification" hidden>
+              <span data-i18n="hilexEmailLabel">HiLex account email</span>
+              <input
+                name="hilexEmail"
+                type="email"
+                autocomplete="email"
+                placeholder="email used for your HiLex membership"
+                data-i18n-placeholder="hilexEmailPlaceholder"
+              />
+              <small class="membership-status" id="hilexStatus" data-i18n="hilexVerificationHint">
+                We will verify your active HiLex membership before confirming without payment.
+              </small>
+            </label>
+
             <fieldset>
               <legend data-i18n="appointmentType">Appointment type</legend>
               <div class="choice-grid two">

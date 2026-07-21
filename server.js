@@ -23,6 +23,8 @@ const siteUrl = process.env.SITE_URL || `http://localhost:${port}`;
 const currency = process.env.STRIPE_CURRENCY || "gbp";
 const vatRate = Number(process.env.VAT_RATE || 20);
 const stripeVatTaxRateId = process.env.STRIPE_VAT_TAX_RATE_ID || "";
+const hilexMembershipVerifyUrl =
+  process.env.HILEX_MEMBERSHIP_VERIFY_URL || "https://membersaccess.hilex.co.uk/api/membership/verify";
 const defaultServices = [
   "Business Law",
   "Civil Law",
@@ -115,6 +117,22 @@ app.get("/api/booked-slots", (request, response) => {
 
 app.get("/api/availability", (request, response) => {
   response.json(readAvailability());
+});
+
+app.post("/api/hilex-membership/verify", async (request, response) => {
+  const email = normalizeEmail(request.body?.email);
+
+  if (!isValidEmail(email)) {
+    return response.status(400).json({ error: "Please enter a valid HiLex account email." });
+  }
+
+  try {
+    const membership = await verifyHilexMembership(email);
+    response.json(getPublicHilexMembershipResponse(membership));
+  } catch (error) {
+    console.error("HiLex membership verification failed:", error);
+    response.status(502).json({ error: "Could not verify HiLex membership right now." });
+  }
 });
 
 app.get("/api/admin/availability", (request, response) => {
@@ -291,11 +309,34 @@ app.post(
 
   const bookingId = crypto.randomUUID();
   const isHilexMember = booking.hilexMember === "yes";
+  let hilexMembership = null;
+
+  if (isHilexMember) {
+    try {
+      hilexMembership = await verifyHilexMembership(booking.hilexEmail);
+    } catch (error) {
+      cleanupUploadedFiles(request);
+      console.error("HiLex membership verification failed during booking:", error);
+      return response.status(502).json({
+        error: "Could not verify HiLex membership right now. Please try again or continue with payment.",
+      });
+    }
+
+    if (!hilexMembership.member) {
+      cleanupUploadedFiles(request);
+      return response.status(403).json({
+        error:
+          "We could not find an active HiLex membership for this email. Please use the email used to purchase your membership or contact us.",
+      });
+    }
+  }
+
   const confirmedBooking = {
     id: bookingId,
     status: isHilexMember ? "confirmed" : "awaiting_payment",
     createdAt: new Date().toISOString(),
     paymentStatus: isHilexMember ? "not_required_hilex_member" : "",
+    hilexMembership,
     documents: collectUploadedDocuments(request, booking),
     ...booking,
   };
@@ -376,6 +417,7 @@ function normalizeBooking(input) {
     duration: String(input.duration || "").trim(),
     consultant: String(input.consultant || "").trim(),
     hilexMember: String(input.hilexMember || "").trim(),
+    hilexEmail: normalizeEmail(input.hilexEmail),
     idType: String(input.idType || "").trim(),
     message: String(input.message || "").trim(),
   };
@@ -397,9 +439,10 @@ function normalizeBooking(input) {
     booking.duration,
     booking.consultant,
     booking.hilexMember,
-    booking.message,
+    booking.hilexMember === "yes" ? booking.hilexEmail : true,
   ].every(Boolean);
-  const hasValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(booking.email);
+  const hasValidEmail = isValidEmail(booking.email);
+  const hasValidHilexEmail = booking.hilexMember !== "yes" || isValidEmail(booking.hilexEmail);
   const hasValidDate = /^\d{4}-\d{2}-\d{2}$/.test(booking.date);
   const hasValidTime = /^\d{2}:\d{2}$/.test(booking.time);
   const hasValidMode = ["online", "inPerson"].includes(booking.appointmentMode);
@@ -417,6 +460,7 @@ function normalizeBooking(input) {
   if (
     !hasRequiredFields ||
     !hasValidEmail ||
+    !hasValidHilexEmail ||
     !hasValidDate ||
     !hasValidTime ||
     !hasValidMode ||
@@ -460,6 +504,8 @@ function formatAdminBooking(booking) {
     caseType: booking.caseType,
     areaOfLaw: booking.areaOfLaw || booking.caseType,
     hilexMember: booking.hilexMember || "",
+    hilexEmail: booking.hilexEmail || "",
+    hilexMembership: booking.hilexMembership || null,
     idType: booking.idType || "",
     appointmentMode: booking.appointmentMode,
     duration: booking.duration,
@@ -489,6 +535,46 @@ function getPublicBookingResponse(booking) {
     duration: booking.duration,
     consultant: booking.consultant,
     hilexMember: booking.hilexMember,
+    hilexEmail: booking.hilexEmail || "",
+  };
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
+}
+
+async function verifyHilexMembership(email) {
+  const response = await fetch(hilexMembershipVerifyUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `HiLex returned HTTP ${response.status}`);
+  }
+
+  return {
+    member: data.member === true && (!data.status || data.status === "active"),
+    plan: data.plan || "",
+    status: data.status || "",
+    validUntil: data.validUntil || "",
+  };
+}
+
+function getPublicHilexMembershipResponse(membership) {
+  return {
+    member: membership.member,
+    plan: membership.plan,
+    status: membership.status,
+    validUntil: membership.validUntil,
   };
 }
 
@@ -1092,6 +1178,7 @@ function buildFirmBookingText(booking, details) {
     `Phone: ${booking.phone}`,
     `Area of law: ${booking.areaOfLaw || booking.caseType}`,
     `HiLex member: ${details.hilexLine}`,
+    `HiLex account email: ${booking.hilexEmail || "Not provided"}`,
     `Appointment type: ${details.appointmentType}`,
     `Consultation length: ${details.durationLine}`,
     `Assigned solicitor: ${booking.consultant || "To be assigned"}`,
@@ -1151,6 +1238,7 @@ function buildFirmBookingHtml(booking, details) {
       ["Phone", booking.phone],
       ["Area of law", booking.areaOfLaw || booking.caseType],
       ["HiLex member", details.hilexLine],
+      ["HiLex account email", booking.hilexEmail || "Not provided"],
       ["Appointment type", details.appointmentType],
       ["Consultation length", details.durationLine],
       ["Assigned solicitor", booking.consultant || "To be assigned"],

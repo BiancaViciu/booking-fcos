@@ -401,6 +401,34 @@ a {
   line-height: 1.5;
 }
 
+.hilex-verification {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(224, 0, 131, 0.22);
+  background: rgba(224, 0, 131, 0.045);
+}
+
+.membership-status {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 750;
+  line-height: 1.45;
+}
+
+.membership-status[data-status="checking"] {
+  color: var(--navy-2);
+}
+
+.membership-status[data-status="valid"] {
+  color: #137047;
+}
+
+.membership-status[data-status="invalid"],
+.membership-status[data-status="error"] {
+  color: var(--danger);
+}
+
 .booking-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

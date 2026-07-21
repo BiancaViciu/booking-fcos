@@ -11,7 +11,17 @@ const bookingPanel = document.querySelector(".booking-panel");
 const calendarCard = document.querySelector(".calendar-card");
 const receiptTemplate = document.querySelector("#bookingTemplate");
 const languageToggle = document.querySelector("#languageToggle");
+const hilexVerification = document.querySelector("#hilexVerification");
+const hilexEmailInput = bookingForm.elements.hilexEmail;
+const hilexStatus = document.querySelector("#hilexStatus");
 const mobileLayout = window.matchMedia("(max-width: 760px)");
+
+let hilexVerifyTimer = null;
+let hilexVerificationState = {
+  status: "idle",
+  email: "",
+  data: null,
+};
 
 const translations = {
   en: {
@@ -40,6 +50,17 @@ const translations = {
     no: "No",
     noConsultationFee: "No consultation fee",
     consultationFeeApplies: "Consultation fee applies",
+    hilexEmailLabel: "HiLex account email",
+    hilexEmailPlaceholder: "email used for your HiLex membership",
+    hilexVerificationHint:
+      "We will verify your active HiLex membership before confirming without payment.",
+    hilexChecking: "Checking HiLex membership...",
+    hilexVerified: "HiLex membership verified. No consultation fee is required.",
+    hilexNotFound:
+      "We could not find an active HiLex membership for this email. Please use the email used to purchase your membership or contact us.",
+    hilexCheckError:
+      "We could not verify your HiLex membership right now. Please try again or select No to continue with payment.",
+    hilexRequired: "Please enter and verify the email associated with your HiLex membership.",
     appointmentType: "Appointment type",
     online: "Online",
     inPerson: "In person",
@@ -124,6 +145,17 @@ const translations = {
     no: "Nu",
     noConsultationFee: "Fără taxă de consultanță",
     consultationFeeApplies: "Se aplică taxa de consultanță",
+    hilexEmailLabel: "Emailul contului HiLex",
+    hilexEmailPlaceholder: "emailul folosit pentru abonamentul HiLex",
+    hilexVerificationHint:
+      "Vom verifica abonamentul HiLex activ înainte de confirmarea fără plată.",
+    hilexChecking: "Verificăm membership-ul HiLex...",
+    hilexVerified: "Membership HiLex verificat. Nu este necesară taxa de consultanță.",
+    hilexNotFound:
+      "Nu am găsit un membership HiLex activ pentru acest email. Te rugăm să folosești emailul cu care ai cumpărat abonamentul sau să ne contactezi.",
+    hilexCheckError:
+      "Nu am putut verifica membership-ul HiLex acum. Te rugăm să încerci din nou sau să selectezi Nu pentru a continua cu plata.",
+    hilexRequired: "Te rugăm să introduci și să verifici emailul asociat contului HiLex.",
     appointmentType: "Tipul programării",
     online: "Online",
     inPerson: "În persoană",
@@ -495,6 +527,127 @@ function getSelectedHilexMember() {
   return new FormData(bookingForm).get("hilexMember") || "no";
 }
 
+function getHilexEmail() {
+  return String(new FormData(bookingForm).get("hilexEmail") || "").trim().toLowerCase();
+}
+
+function hasValidEmailFormat(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function resetHilexVerification() {
+  hilexVerificationState = {
+    status: "idle",
+    email: "",
+    data: null,
+  };
+}
+
+function setHilexStatus(status, message) {
+  if (!hilexStatus) {
+    return;
+  }
+
+  hilexVerificationState.status = status;
+  hilexStatus.textContent = message;
+  hilexStatus.dataset.status = status;
+}
+
+function updateHilexVerificationPanel({ reset = false } = {}) {
+  const isHilexMember = getSelectedHilexMember() === "yes";
+
+  if (!hilexVerification || !hilexEmailInput) {
+    return;
+  }
+
+  hilexVerification.hidden = !isHilexMember;
+  hilexEmailInput.required = isHilexMember;
+
+  if (!isHilexMember) {
+    hilexEmailInput.value = "";
+    resetHilexVerification();
+    setHilexStatus("idle", t("hilexVerificationHint"));
+    return;
+  }
+
+  if (reset) {
+    resetHilexVerification();
+    setHilexStatus("idle", t("hilexVerificationHint"));
+  }
+}
+
+async function verifyHilexMembership() {
+  if (getSelectedHilexMember() !== "yes") {
+    return true;
+  }
+
+  const email = getHilexEmail();
+
+  if (!hasValidEmailFormat(email)) {
+    resetHilexVerification();
+    setHilexStatus("idle", t("hilexVerificationHint"));
+    updatePaymentButtonState();
+    return false;
+  }
+
+  if (hilexVerificationState.status === "valid" && hilexVerificationState.email === email) {
+    return true;
+  }
+
+  hilexVerificationState.email = email;
+  setHilexStatus("checking", t("hilexChecking"));
+  updatePaymentButtonState();
+
+  try {
+    const response = await fetch("/api/hilex-membership/verify", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(data.error || "Membership verification failed.");
+    }
+
+    hilexVerificationState = {
+      status: data.member ? "valid" : "invalid",
+      email,
+      data,
+    };
+
+    setHilexStatus(data.member ? "valid" : "invalid", data.member ? t("hilexVerified") : t("hilexNotFound"));
+    updatePaymentButtonState();
+    return Boolean(data.member);
+  } catch {
+    hilexVerificationState = {
+      status: "error",
+      email,
+      data: null,
+    };
+    setHilexStatus("error", t("hilexCheckError"));
+    updatePaymentButtonState();
+    return false;
+  }
+}
+
+function scheduleHilexVerification() {
+  clearTimeout(hilexVerifyTimer);
+  resetHilexVerification();
+  setHilexStatus("idle", t("hilexVerificationHint"));
+  updatePaymentButtonState();
+
+  if (getSelectedHilexMember() !== "yes" || !hasValidEmailFormat(getHilexEmail())) {
+    return;
+  }
+
+  hilexVerifyTimer = window.setTimeout(() => {
+    verifyHilexMembership();
+  }, 550);
+}
+
 function getModeLabel() {
   return getSelectedMode() === "inPerson" ? t("inPerson") : t("online");
 }
@@ -691,14 +844,17 @@ function updatePaymentButtonState() {
     "phone",
     "caseType",
     "hilexMember",
-    "message",
   ].every((name) => Boolean(String(formData.get(name) || "").trim()));
   const consentChecked = Boolean(bookingForm.elements.consent?.checked);
+  const hilexVerified =
+    getSelectedHilexMember() !== "yes" ||
+    (hilexVerificationState.status === "valid" && hilexVerificationState.email === getHilexEmail());
 
   submitButton.disabled = Boolean(
     isSubmitting ||
       !hasAppointment ||
       !requiredFieldsComplete ||
+      !hilexVerified ||
       !consentChecked,
   );
 
@@ -723,6 +879,7 @@ function applyLanguage() {
   });
 
   renderAreas();
+  updateHilexVerificationPanel();
   renderConsultants();
   renderCalendar();
   renderSlots();
@@ -755,6 +912,7 @@ bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duratio
     }
 
     if (control.name === "hilexMember") {
+      updateHilexVerificationPanel({ reset: true });
       updateDurationLabels();
     }
 
@@ -768,6 +926,11 @@ bookingForm.querySelectorAll('input[name="appointmentMode"], input[name="duratio
     updatePaymentButtonState();
   });
 });
+
+if (hilexEmailInput) {
+  hilexEmailInput.addEventListener("input", scheduleHilexVerification);
+  hilexEmailInput.addEventListener("blur", verifyHilexMembership);
+}
 
 mobileLayout.addEventListener("change", placeCalendarForViewport);
 languageToggle.addEventListener("click", () => {
@@ -804,6 +967,16 @@ bookingForm.addEventListener("submit", async (event) => {
   }
 
   const formData = new FormData(bookingForm);
+
+  if (formData.get("hilexMember") === "yes") {
+    const isVerifiedHilexMember = await verifyHilexMembership();
+
+    if (!isVerifiedHilexMember) {
+      formStatus.textContent = t("hilexRequired");
+      return;
+    }
+  }
+
   formData.set("date", dateKey);
   formData.set("time", selectedTime);
   formData.set("consultant", assignedConsultant);
